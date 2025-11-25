@@ -223,12 +223,29 @@ Quick reference for common tasks:
 - Complete service stack included
 - See also: [MIGRATION_NOTES.md](MIGRATION_NOTES.md)
 
+### 🔄 [SCHEMA_EVOLUTION.md](SCHEMA_EVOLUTION.md)
+**Schema evolution and versioning**:
+- Automatic schema change detection
+- Supported vs. unsupported changes
+- Safe migration strategies
+- Schema versioning with Iceberg
+- Time travel and rollback
+- Troubleshooting schema issues
+
+### 💾 [STORAGE_CONFIGURATION.md](STORAGE_CONFIGURATION.md)
+**Data storage and persistence**:
+- Host directory vs Docker volumes
+- MinIO data on host filesystem
+- Backup and restore procedures
+- Disk space management
+- Data portability
+
 ## Iceberg Features
 
 This system uses **Apache Iceberg** for table management, providing:
 
 - **ACID Transactions**: Atomic commits for streaming writes
-- **Schema Evolution**: Add/modify columns without rewriting data
+- **Schema Evolution**: Add/modify columns without rewriting data (see [SCHEMA_EVOLUTION.md](SCHEMA_EVOLUTION.md))
 - **Time Travel**: Query historical snapshots of data
 - **Partition Evolution**: Change partitioning without rewriting
 - **Hidden Partitioning**: Partition transparently (no partition columns in queries)

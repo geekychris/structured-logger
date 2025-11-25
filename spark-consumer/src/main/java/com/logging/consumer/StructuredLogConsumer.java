@@ -197,7 +197,7 @@ public class StructuredLogConsumer {
     }
 
     private static void ensureTableExists(SparkSession spark, LogConfig config, String warehousePath) {
-        String tableName = config.warehouse.tableName;  // e.g., "analytics.logs.api_metrics"
+        String tableName = config.warehouse.tableName;  // e.g., "analytics_logs.api_metrics"
         StructType schema = createSchema(config.fields);
 
         // Add metadata fields
@@ -217,44 +217,153 @@ public class StructuredLogConsumer {
                 spark.sql("CREATE DATABASE IF NOT EXISTS local." + dbName + " LOCATION '" + warehousePath + "/" + dbName + "'");
             }
 
-            // Build CREATE TABLE statement with catalog prefix
             String fullTableName = "local." + tableName;
-            System.out.println("Creating Iceberg table: " + fullTableName);
-
-            StringBuilder fieldsSQL = new StringBuilder();
-            for (int i = 0; i < fullSchema.fields().length; i++) {
-                StructField field = fullSchema.fields()[i];
-                if (i > 0) fieldsSQL.append(", ");
-                fieldsSQL.append(field.name()).append(" ").append(sparkTypeToSQLType(field.dataType()));
-            }
-
-            String partitionByClause = "";
-            if (config.warehouse.partitionBy != null && !config.warehouse.partitionBy.isEmpty()) {
-                partitionByClause = "PARTITIONED BY (" + String.join(", ", config.warehouse.partitionBy) + ")";
-            }
-
-            String tblProperties = "TBLPROPERTIES ('write.format.default'='parquet', " +
-                    "'write.parquet.compression-codec'='snappy', " +
-                    "'write.metadata.compression-codec'='gzip'";
             
-            if (config.warehouse.sortBy != null && !config.warehouse.sortBy.isEmpty()) {
-                tblProperties += ", 'sort.order'='" + String.join(", ", config.warehouse.sortBy) + "'";
+            // Check if table exists
+            boolean tableExists = tableExists(spark, fullTableName);
+            
+            if (!tableExists) {
+                // Create new table
+                createNewTable(spark, fullTableName, fullSchema, config);
+            } else {
+                // Table exists - check for schema evolution
+                evolveSchema(spark, fullTableName, fullSchema, config);
             }
-            tblProperties += ")";
-
-            String createTableSQL = String.format(
-                    "CREATE TABLE IF NOT EXISTS %s (%s) USING iceberg %s %s",
-                    fullTableName, fieldsSQL.toString(), partitionByClause, tblProperties
-            );
-
-            System.out.println("Executing: " + createTableSQL);
-            spark.sql(createTableSQL);
+            
             System.out.println("✓ Table ready: " + fullTableName);
         } catch (Exception e) {
-            System.err.println("Error creating table " + tableName + ": " + e.getMessage());
+            System.err.println("Error managing table " + tableName + ": " + e.getMessage());
             e.printStackTrace();
-            throw new RuntimeException("Failed to create table", e);
+            throw new RuntimeException("Failed to manage table", e);
         }
+    }
+    
+    private static boolean tableExists(SparkSession spark, String fullTableName) {
+        try {
+            spark.sql("DESCRIBE TABLE " + fullTableName).collect();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    private static void createNewTable(SparkSession spark, String fullTableName, StructType schema, LogConfig config) {
+        System.out.println("Creating new Iceberg table: " + fullTableName);
+        
+        StringBuilder fieldsSQL = new StringBuilder();
+        for (int i = 0; i < schema.fields().length; i++) {
+            StructField field = schema.fields()[i];
+            if (i > 0) fieldsSQL.append(", ");
+            fieldsSQL.append(field.name()).append(" ").append(sparkTypeToSQLType(field.dataType()));
+        }
+
+        String partitionByClause = "";
+        if (config.warehouse.partitionBy != null && !config.warehouse.partitionBy.isEmpty()) {
+            partitionByClause = "PARTITIONED BY (" + String.join(", ", config.warehouse.partitionBy) + ")";
+        }
+
+        String tblProperties = "TBLPROPERTIES ('write.format.default'='parquet', " +
+                "'write.parquet.compression-codec'='snappy', " +
+                "'write.metadata.compression-codec'='gzip'";
+        
+        if (config.warehouse.sortBy != null && !config.warehouse.sortBy.isEmpty()) {
+            tblProperties += ", 'sort.order'='" + String.join(", ", config.warehouse.sortBy) + "'";
+        }
+        tblProperties += ")";
+
+        String createTableSQL = String.format(
+                "CREATE TABLE %s (%s) USING iceberg %s %s",
+                fullTableName, fieldsSQL.toString(), partitionByClause, tblProperties
+        );
+
+        System.out.println("Executing: " + createTableSQL);
+        spark.sql(createTableSQL);
+        System.out.println("✓ Created table: " + fullTableName);
+    }
+    
+    private static void evolveSchema(SparkSession spark, String fullTableName, StructType desiredSchema, LogConfig config) {
+        System.out.println("Checking schema evolution for: " + fullTableName);
+        
+        // Get current schema
+        Dataset<Row> currentTable = spark.table(fullTableName);
+        StructType currentSchema = currentTable.schema();
+        
+        // Build map of current fields
+        Map<String, StructField> currentFields = new HashMap<>();
+        for (StructField field : currentSchema.fields()) {
+            currentFields.put(field.name(), field);
+        }
+        
+        // Check for new fields to add
+        List<String> alterStatements = new ArrayList<>();
+        for (StructField desiredField : desiredSchema.fields()) {
+            String fieldName = desiredField.name();
+            
+            if (!currentFields.containsKey(fieldName)) {
+                // New field - add it
+                String sqlType = sparkTypeToSQLType(desiredField.dataType());
+                String alterSQL = String.format(
+                    "ALTER TABLE %s ADD COLUMN %s %s",
+                    fullTableName, fieldName, sqlType
+                );
+                alterStatements.add(alterSQL);
+                System.out.println("  + Adding new column: " + fieldName + " " + sqlType);
+            } else {
+                // Field exists - check type compatibility
+                StructField currentField = currentFields.get(fieldName);
+                if (!areTypesCompatible(currentField.dataType(), desiredField.dataType())) {
+                    System.err.println("  ! WARNING: Field '" + fieldName + "' type mismatch:");
+                    System.err.println("    Current: " + currentField.dataType().typeName());
+                    System.err.println("    Desired: " + desiredField.dataType().typeName());
+                    System.err.println("    Type changes are not supported - keeping current type");
+                }
+            }
+        }
+        
+        // Check for removed fields (warning only - Iceberg doesn't delete columns)
+        for (String currentFieldName : currentFields.keySet()) {
+            boolean stillExists = false;
+            for (StructField desiredField : desiredSchema.fields()) {
+                if (desiredField.name().equals(currentFieldName)) {
+                    stillExists = true;
+                    break;
+                }
+            }
+            if (!stillExists && !currentFieldName.startsWith("_ingestion")) {
+                System.out.println("  ! INFO: Field '" + currentFieldName + "' removed from config but will remain in table");
+                System.out.println("    (Iceberg preserves schema history - old data remains queryable)");
+            }
+        }
+        
+        // Execute ALTER statements
+        if (!alterStatements.isEmpty()) {
+            System.out.println("Evolving schema with " + alterStatements.size() + " change(s)...");
+            for (String alterSQL : alterStatements) {
+                System.out.println("Executing: " + alterSQL);
+                spark.sql(alterSQL);
+            }
+            System.out.println("✓ Schema evolved successfully");
+        } else {
+            System.out.println("✓ Schema unchanged");
+        }
+    }
+    
+    private static boolean areTypesCompatible(DataType current, DataType desired) {
+        // Exact match
+        if (current.equals(desired)) {
+            return true;
+        }
+        
+        // Widening conversions that Iceberg supports
+        if (current instanceof IntegerType && desired instanceof LongType) {
+            return true;  // int -> long is safe
+        }
+        if (current instanceof FloatType && desired instanceof DoubleType) {
+            return true;  // float -> double is safe
+        }
+        
+        // Everything else is incompatible
+        return false;
     }
 
     private static String sparkTypeToSQLType(DataType dataType) {

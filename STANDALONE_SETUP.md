@@ -279,22 +279,104 @@ cd spark-consumer && mvn clean package -DskipTests && cd ..
    ./start-consumer.sh
    ```
 
-## Data Persistence
+### Generating Test Data
 
-Data is stored in Docker volumes:
-- `structured-logging_minio-data`: S3/MinIO object storage (Parquet files, Iceberg metadata)
-- `structured-logging_postgres-data`: Hive metastore database
+Use the test data generator to create realistic log events:
 
-To backup:
 ```bash
-docker run --rm -v structured_logging_minio-data:/data -v $(pwd)/backup:/backup alpine \
-  tar czf /backup/minio-backup.tar.gz /data
+# Generate 100 events (default)
+python3 examples/generate_test_data.py
+
+# Generate 1000 events
+python3 examples/generate_test_data.py --count 1000
+
+# Continuous generation at 10 events/second
+python3 examples/generate_test_data.py --continuous --rate 10
+
+# Generate for 5 minutes at 5 events/second
+python3 examples/generate_test_data.py --duration 300 --rate 5
 ```
 
-To restore:
+The generator creates:
+- **User events** (60%): clicks, page views, purchases, searches, logins, logouts
+  - 100 unique users, 500 sessions
+  - Realistic device types, browsers, pages
+  - Variable duration based on event type
+- **API metrics** (40%): REST API calls
+  - 5 services, 8 endpoints
+  - 95% success rate, realistic response times
+  - Errors with higher latency
+
+View the generated data in Trino:
+```sql
+SELECT COUNT(*) FROM iceberg.analytics_logs.user_events;
+SELECT COUNT(*) FROM iceberg.analytics_logs.api_metrics;
+```
+
+## Data Persistence
+
+Data is stored in the following locations:
+
+### Host Directories (All Persistent)
+
+All data is stored in `./data/` on the host:
+
+- **`./data/minio/`**: MinIO/S3 object storage
+  - Iceberg tables (Parquet files, metadata)
+  - Warehouse data
+  
+- **`./data/postgres/`**: PostgreSQL database
+  - Hive Metastore catalog
+  - Table/column metadata
+  
+- **`./data/kafka/`**: Kafka message logs
+  - Topic data and offsets
+  - Consumer group state
+  
+- **`./data/zookeeper/`**: Coordination data
+  - Kafka cluster metadata
+  - Leader election state
+
+**Benefits**:
+- ✅ **Survives all Docker operations** including `docker-compose down -v`
+- ✅ **Easy backup**: `tar czf backup.tar.gz data/`
+- ✅ **Portable**: Copy directory to any machine
+- ✅ **Inspectable**: View files directly on host
+- ✅ **No vendor lock-in**: Standard filesystem
+
+### Backup All Data
+
 ```bash
-docker run --rm -v structured_logging_minio-data:/data -v $(pwd)/backup:/backup alpine \
-  tar xzf /backup/minio-backup.tar.gz -C /
+# Create backup directory
+mkdir -p backups
+
+# Backup everything (recommended)
+tar czf backups/all-data-$(date +%Y%m%d-%H%M%S).tar.gz data/
+
+# Or backup individually
+tar czf backups/minio-$(date +%Y%m%d).tar.gz data/minio/
+tar czf backups/postgres-$(date +%Y%m%d).tar.gz data/postgres/
+tar czf backups/kafka-$(date +%Y%m%d).tar.gz data/kafka/
+tar czf backups/zookeeper-$(date +%Y%m%d).tar.gz data/zookeeper/
+```
+
+### Restore Data
+
+```bash
+# Stop services
+docker-compose down
+
+# Restore all data
+tar xzf backups/all-data-20241125-120000.tar.gz
+
+# Or restore individually
+rm -rf data/minio && tar xzf backups/minio-20241125.tar.gz
+rm -rf data/postgres && tar xzf backups/postgres-20241125.tar.gz
+rm -rf data/kafka && tar xzf backups/kafka-20241125.tar.gz
+rm -rf data/zookeeper && tar xzf backups/zookeeper-20241125.tar.gz
+
+# Restart services
+docker-compose up -d
 ```
 
 ## Production Considerations

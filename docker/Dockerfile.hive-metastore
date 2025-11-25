@@ -2,6 +2,9 @@ FROM apache/hive:4.0.0
 
 USER root
 
+# Install PostgreSQL client for pg_isready
+RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
+
 # Copy PostgreSQL JDBC driver
 COPY postgresql-42.7.1.jar /opt/hive/lib/postgresql-jdbc.jar
 
@@ -12,4 +15,11 @@ ADD https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aw
 # Set proper permissions
 RUN chmod 644 /opt/hive/lib/*.jar
 
+# Create initialization script
+COPY init-metastore.sh /opt/hive/bin/init-metastore.sh
+RUN chmod +x /opt/hive/bin/init-metastore.sh
+
 USER hive
+
+# Use custom entrypoint that initializes schema
+ENTRYPOINT ["/opt/hive/bin/init-metastore.sh"]

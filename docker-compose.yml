@@ -12,7 +12,7 @@ services:
       - MINIO_ROOT_PASSWORD=password123
     command: server /data --console-address ":9001"
     volumes:
-      - minio-data:/data
+      - ./data/minio:/data
     networks:
       - logging-network
     healthcheck:
@@ -41,12 +41,13 @@ services:
     container_name: postgres
     environment:
       - POSTGRES_USER=hive
-      - POSTGRES_PASSWORD=hive
+      - POSTGRES_PASSWORD=hivepassword
       - POSTGRES_DB=metastore
+      - PGDATA=/var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
     networks:
       - logging-network
     healthcheck:
@@ -68,7 +69,7 @@ services:
     environment:
       - SERVICE_NAME=metastore
       - DB_DRIVER=postgres
-      - SERVICE_OPTS=-Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/metastore -Djavax.jdo.option.ConnectionUserName=hive -Djavax.jdo.option.ConnectionPassword=hive
+      - SERVICE_OPTS=-Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/metastore -Djavax.jdo.option.ConnectionUserName=hive -Djavax.jdo.option.ConnectionPassword=hivepassword
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=password123
       - HADOOP_CONF_DIR=/etc/hadoop/conf
@@ -124,8 +125,13 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_DATA_DIR: /var/lib/zookeeper/data
+      ZOOKEEPER_LOG_DIR: /var/lib/zookeeper/log
     ports:
       - "2181:2181"
+    volumes:
+      - ./data/zookeeper/data:/var/lib/zookeeper/data
+      - ./data/zookeeper/log:/var/lib/zookeeper/log
     networks:
       - logging-network
     healthcheck:
@@ -151,6 +157,9 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - ./data/kafka:/var/lib/kafka/data
     networks:
       - logging-network
     healthcheck:
@@ -178,12 +187,6 @@ services:
     networks:
       - logging-network
     restart: unless-stopped
-
-volumes:
-  minio-data:
-    driver: local
-  postgres-data:
-    driver: local
 
 networks:
   logging-network:
