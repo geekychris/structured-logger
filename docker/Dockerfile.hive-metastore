@@ -1,0 +1,15 @@
+FROM apache/hive:4.0.0
+
+USER root
+
+# Copy PostgreSQL JDBC driver
+COPY postgresql-42.7.1.jar /opt/hive/lib/postgresql-jdbc.jar
+
+# Download Hadoop AWS and AWS SDK JARs for S3 support
+ADD https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.4/hadoop-aws-3.3.4.jar /opt/hive/lib/
+ADD https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar /opt/hive/lib/
+
+# Set proper permissions
+RUN chmod 644 /opt/hive/lib/*.jar
+
+USER hive

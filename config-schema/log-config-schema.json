@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Structured Log Configuration",
+  "description": "Configuration for structured logging with Kafka and data warehouse integration",
+  "type": "object",
+  "required": ["name", "version", "kafka", "warehouse", "fields"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique name for this log category",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9_]*$"
+    },
+    "version": {
+      "type": "string",
+      "description": "Schema version for evolution tracking",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of this log category"
+    },
+    "kafka": {
+      "type": "object",
+      "required": ["topic"],
+      "properties": {
+        "topic": {
+          "type": "string",
+          "description": "Kafka topic name"
+        },
+        "partitions": {
+          "type": "integer",
+          "description": "Number of partitions",
+          "default": 3,
+          "minimum": 1
+        },
+        "replication_factor": {
+          "type": "integer",
+          "description": "Replication factor",
+          "default": 1,
+          "minimum": 1
+        },
+        "retention_ms": {
+          "type": "integer",
+          "description": "Retention period in milliseconds",
+          "default": 604800000
+        }
+      }
+    },
+    "warehouse": {
+      "type": "object",
+      "required": ["table_name"],
+      "properties": {
+        "table_name": {
+          "type": "string",
+          "description": "Fully qualified table name (e.g., warehouse.logs.user_events)"
+        },
+        "partition_by": {
+          "type": "array",
+          "description": "Fields to partition by",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sort_by": {
+          "type": "array",
+          "description": "Fields to sort by",
+          "items": {
+            "type": "string"
+          }
+        },
+        "retention_days": {
+          "type": "integer",
+          "description": "Data retention in days",
+          "minimum": 1
+        }
+      }
+    },
+    "fields": {
+      "type": "array",
+      "description": "Ordered list of log fields",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "type"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Field name",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_]*$"
+          },
+          "type": {
+            "type": "string",
+            "description": "Field data type",
+            "enum": [
+              "string",
+              "int",
+              "long",
+              "float",
+              "double",
+              "boolean",
+              "timestamp",
+              "date",
+              "array<string>",
+              "array<int>",
+              "array<long>",
+              "map<string,string>"
+            ]
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether field is required",
+            "default": true
+          },
+          "default": {
+            "description": "Default value if not provided"
+          },
+          "description": {
+            "type": "string",
+            "description": "Field description"
+          }
+        }
+      }
+    }
+  }
+}
