@@ -1,0 +1,46 @@
+# Build outputs
+target/
+*.class
+*.jar
+!spark-consumer/target/*.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.env
+.venv
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Generated code
+generated-loggers/
+
+# Data directories
+data/
+spark-data/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes (local only)
+postgres-data/
+minio-data/

@@ -1,0 +1,91 @@
+{
+  "name": "ApiMetrics",
+  "version": "1.0.0",
+  "description": "API endpoint performance and usage metrics",
+  "kafka": {
+    "topic": "api-metrics",
+    "partitions": 4,
+    "replication_factor": 3,
+    "retention_ms": 604800000
+  },
+  "warehouse": {
+    "table_name": "analytics_logs.api_metrics",
+    "partition_by": ["metric_date", "service_name"],
+    "sort_by": ["timestamp", "endpoint"],
+    "retention_days": 30
+  },
+  "fields": [
+    {
+      "name": "timestamp",
+      "type": "timestamp",
+      "required": true,
+      "description": "Metric timestamp"
+    },
+    {
+      "name": "metric_date",
+      "type": "date",
+      "required": true,
+      "description": "Date for partitioning"
+    },
+    {
+      "name": "service_name",
+      "type": "string",
+      "required": true,
+      "description": "Name of the service"
+    },
+    {
+      "name": "endpoint",
+      "type": "string",
+      "required": true,
+      "description": "API endpoint path"
+    },
+    {
+      "name": "method",
+      "type": "string",
+      "required": true,
+      "description": "HTTP method (GET, POST, etc.)"
+    },
+    {
+      "name": "status_code",
+      "type": "int",
+      "required": true,
+      "description": "HTTP status code"
+    },
+    {
+      "name": "response_time_ms",
+      "type": "long",
+      "required": true,
+      "description": "Response time in milliseconds"
+    },
+    {
+      "name": "request_size_bytes",
+      "type": "long",
+      "required": false,
+      "description": "Request payload size"
+    },
+    {
+      "name": "response_size_bytes",
+      "type": "long",
+      "required": false,
+      "description": "Response payload size"
+    },
+    {
+      "name": "user_id",
+      "type": "string",
+      "required": false,
+      "description": "User identifier if authenticated"
+    },
+    {
+      "name": "client_ip",
+      "type": "string",
+      "required": false,
+      "description": "Client IP address"
+    },
+    {
+      "name": "error_message",
+      "type": "string",
+      "required": false,
+      "description": "Error message if request failed"
+    }
+  ]
+}
