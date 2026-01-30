@@ -106,7 +106,7 @@ docker exec -d $SPARK_MASTER bash -c "AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=adm
   /opt/spark-data/log-configs \
   kafka:29092 \
   s3a://warehouse/ \
-  s3a://warehouse/checkpoints > /opt/spark-data/consumer.log 2>&1"
+  /opt/spark-data/checkpoints > /opt/spark-data/consumer.log 2>&1"
 
 sleep 5
 
