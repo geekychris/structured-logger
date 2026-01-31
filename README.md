@@ -187,7 +187,22 @@ The Spark consumer will:
 
 ## Complete Documentation
 
-For detailed instructions, see:
+**Quick Links**:
+- 📝 [Adding New Loggers](ADDING_NEW_LOGGERS.md) - Start here for creating new log types!
+- 📊 [Configuration Flow Diagram](docs/CONFIG_FLOW_DIAGRAM.md) - Visual guide
+- 📚 [Build & Run Guide](BUILD_AND_RUN.md) - Building and deployment
+- ⚡ [Quick Reference](QUICK_REFERENCE.md) - Common operations
+
+### Detailed Guides
+
+### 📝 [ADDING_NEW_LOGGERS.md](ADDING_NEW_LOGGERS.md) ⭐ NEW!
+**Step-by-step guide for creating new log types**:
+- Understanding the configuration flow
+- Creating log configurations
+- Generating type-safe logger code
+- How Spark consumer auto-discovers configs (Docker volume mounts)
+- Testing and verification
+- Troubleshooting common issues
 
 ### 📚 [BUILD_AND_RUN.md](BUILD_AND_RUN.md)
 Comprehensive guide covering:
@@ -327,11 +342,17 @@ mvn clean package
 
 ## Adding a New Log Type
 
-1. Create a JSON config file in `examples/`
-2. Run the generator: `python3 generators/generate_loggers.py examples/your_config.json`
-3. Build your application with the generated logger
-4. Deploy/restart the Spark consumer to pick up the new config
-5. Start logging!
+**Quick Steps:**
+
+1. **Create config**: Add `log-configs/my_new_log.json` with your schema
+2. **Generate loggers**: `python generators/generate_loggers.py log-configs/my_new_log.json`
+3. **Restart consumer**: `./start-consumer.sh` (auto-discovers new config via Docker volume mount)
+4. **Use logger**: Import and use the generated type-safe logger in your app
+5. **Query data**: Use Trino to query your Iceberg table
+
+**📖 For detailed instructions with examples and troubleshooting, see: [ADDING_NEW_LOGGERS.md](ADDING_NEW_LOGGERS.md)**
+
+The Spark consumer automatically discovers new configs because `log-configs/` is mounted into the container via Docker volumes - no manual copying needed!
 
 ## Best Practices
 

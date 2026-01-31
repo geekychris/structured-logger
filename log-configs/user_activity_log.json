@@ -1,0 +1,98 @@
+{
+  "name": "UserActivityLog",
+  "log_type": "user_activity",
+  "version": "1.0.0",
+  "description": "Logs user activity events such as login, logout, and API access",
+  "kafka": {
+    "topic": "user-activity",
+    "partitions": 3,
+    "replication_factor": 1,
+    "retention_ms": 604800000
+  },
+  "warehouse": {
+    "table_name": "analytics_logs.user_activity",
+    "partition_by": ["event_date", "event_type"],
+    "sort_by": ["timestamp", "user_id"],
+    "retention_days": 90
+  },
+  "fields": [
+    {
+      "name": "user_id",
+      "type": "string",
+      "required": true,
+      "description": "Unique identifier for the user"
+    },
+    {
+      "name": "username",
+      "type": "string",
+      "required": false,
+      "description": "Username of the user"
+    },
+    {
+      "name": "event_type",
+      "type": "string",
+      "required": true,
+      "description": "Type of user activity event (LOGIN, LOGOUT, API_ACCESS, etc.)"
+    },
+    {
+      "name": "event_date",
+      "type": "date",
+      "required": true,
+      "description": "Date of the event (YYYY-MM-DD) for partitioning"
+    },
+    {
+      "name": "timestamp",
+      "type": "timestamp",
+      "required": true,
+      "description": "Precise timestamp of the event in ISO-8601 format"
+    },
+    {
+      "name": "ip_address",
+      "type": "string",
+      "required": false,
+      "description": "IP address of the user"
+    },
+    {
+      "name": "user_agent",
+      "type": "string",
+      "required": false,
+      "description": "Browser user agent string"
+    },
+    {
+      "name": "endpoint",
+      "type": "string",
+      "required": false,
+      "description": "API endpoint accessed (for API_ACCESS events)"
+    },
+    {
+      "name": "http_method",
+      "type": "string",
+      "required": false,
+      "description": "HTTP method used (GET, POST, PUT, DELETE, etc.)"
+    },
+    {
+      "name": "status_code",
+      "type": "int",
+      "required": false,
+      "description": "HTTP status code returned"
+    },
+    {
+      "name": "response_time_ms",
+      "type": "long",
+      "required": false,
+      "description": "Response time in milliseconds"
+    },
+    {
+      "name": "session_id",
+      "type": "string",
+      "required": false,
+      "description": "Session identifier"
+    },
+    {
+      "name": "metadata",
+      "type": "map<string,string>",
+      "required": false,
+      "description": "Additional metadata as key-value pairs"
+    }
+  ]
+}

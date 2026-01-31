@@ -309,13 +309,17 @@ LIMIT 10;
 
 ### Adding a New Log Type
 
-1. Create config JSON file
-2. Run generator: `make generate`
+1. Create config JSON file in `log-configs/`
+2. Run generator: `python generators/generate_loggers.py log-configs/your_config.json`
 3. Build applications with new logger
 4. Deploy applications
-5. Restart Spark consumer (picks up new config automatically)
+5. Restart Spark consumer (automatically discovers new config via Docker volume mount)
 
 Total time: ~10 minutes
+
+**📖 For detailed step-by-step instructions, see: [ADDING_NEW_LOGGERS.md](ADDING_NEW_LOGGERS.md)**
+
+**How Config Discovery Works**: The `log-configs/` directory is mounted into the Spark container via Docker volumes (`./log-configs:/opt/spark-apps/log-configs`). When the consumer starts, it reads ALL `.json` files from this directory - no manual copying required!
 
 ### Schema Evolution
 

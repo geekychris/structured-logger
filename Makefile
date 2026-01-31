@@ -3,7 +3,7 @@
 help:
 	@echo "Structured Logging System - Make Targets"
 	@echo ""
-	@echo "  generate         - Generate loggers from example configs"
+	@echo "  generate         - Generate loggers from log-configs/"
 	@echo "  build-java       - Build Java logger library"
 	@echo "  build-python     - Install Python logger dependencies"
 	@echo "  build-spark      - Build Spark consumer JAR"
@@ -11,12 +11,17 @@ help:
 	@echo "  clean            - Clean generated files and build artifacts"
 	@echo "  examples         - Run example code"
 	@echo ""
+	@echo "For detailed instructions on adding new loggers, see: ADDING_NEW_LOGGERS.md"
+	@echo ""
 
 generate:
-	@echo "Generating loggers from example configs..."
-	cd generators && python3 generate_loggers.py ../examples/user_events.json
-	cd generators && python3 generate_loggers.py ../examples/api_metrics.json
-	@echo "Generation complete!"
+	@echo "Generating loggers from log-configs/..."
+	@echo "Note: Add your config files to log-configs/ directory"
+	@for config in log-configs/*.json; do \
+		echo "Generating from $$config..."; \
+		python3 generators/generate_loggers.py "$$config"; \
+	done
+	@echo "Generation complete! Generated loggers for all configs in log-configs/"
 
 build-java:
 	@echo "Building Java logger..."

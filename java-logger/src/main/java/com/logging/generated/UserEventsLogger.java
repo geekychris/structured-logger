@@ -12,7 +12,7 @@ import java.util.Map;
  * 
  * Version: 1.0.0
  * Kafka Topic: user-events
- * Warehouse Table: analytics.logs.user_events
+ * Warehouse Table: analytics_logs.user_events
  * 
  * DO NOT EDIT - This file is auto-generated from the log config.
  */
@@ -20,13 +20,15 @@ public class UserEventsLogger extends BaseStructuredLogger {
 
     private static final String TOPIC_NAME = "user-events";
     private static final String LOGGER_NAME = "UserEvents";
+    private static final String LOG_TYPE = "user_events";
+    private static final String VERSION = "1.0.0";
 
     public UserEventsLogger() {
-        super(TOPIC_NAME, LOGGER_NAME);
+        super(TOPIC_NAME, LOGGER_NAME, LOG_TYPE, VERSION);
     }
 
     public UserEventsLogger(String kafkaBootstrapServers) {
-        super(TOPIC_NAME, LOGGER_NAME, kafkaBootstrapServers);
+        super(TOPIC_NAME, LOGGER_NAME, LOG_TYPE, VERSION, kafkaBootstrapServers);
     }
 
     /**

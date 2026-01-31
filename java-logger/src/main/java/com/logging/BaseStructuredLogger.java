@@ -29,25 +29,31 @@ public abstract class BaseStructuredLogger implements AutoCloseable {
     protected final String topicName;
     protected final KafkaProducer<String, String> producer;
     private final String loggerName;
+    private final String logType;
+    private final String version;
 
     /**
      * Constructor for base structured logger.
      *
      * @param topicName Kafka topic to publish to
      * @param loggerName Name of this logger for identification
+     * @param logType Log type identifier for routing (e.g., "user_activity")
+     * @param version Schema version
      * @param kafkaBootstrapServers Kafka bootstrap servers
      */
-    protected BaseStructuredLogger(String topicName, String loggerName, String kafkaBootstrapServers) {
+    protected BaseStructuredLogger(String topicName, String loggerName, String logType, String version, String kafkaBootstrapServers) {
         this.topicName = topicName;
         this.loggerName = loggerName;
+        this.logType = logType;
+        this.version = version;
         this.producer = createProducer(kafkaBootstrapServers);
     }
 
     /**
      * Constructor that reads Kafka bootstrap servers from environment variable.
      */
-    protected BaseStructuredLogger(String topicName, String loggerName) {
-        this(topicName, loggerName, 
+    protected BaseStructuredLogger(String topicName, String loggerName, String logType, String version) {
+        this(topicName, loggerName, logType, version,
              System.getenv().getOrDefault("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"));
     }
 

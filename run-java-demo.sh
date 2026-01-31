@@ -16,6 +16,20 @@ fi
 echo "✓ Infrastructure is running"
 echo ""
 
+# Build Java logger with dependencies
+echo "Building Java logger..."
+cd java-logger
+mvn clean package -q
+
+if [ $? -ne 0 ]; then
+    echo "❌ Maven build failed"
+    exit 1
+fi
+
+cd ..
+echo "✓ Built successfully"
+echo ""
+
 # Build classpath with all dependencies
 CLASSPATH="$(pwd)/java-logger/target/structured-logging-java-1.0.0.jar"
 for jar in $(pwd)/java-logger/target/lib/*.jar; do
@@ -42,6 +56,11 @@ echo ""
 
 # Run the example
 java -cp "$CLASSPATH:." JavaExample
+
+if [ $? -ne 0 ]; then
+    echo "❌ Execution failed"
+    exit 1
+fi
 
 echo ""
 echo "=========================================="

@@ -1,5 +1,6 @@
 {
   "name": "ApiMetrics",
+  "log_type": "api_metrics",
   "version": "1.0.0",
   "description": "API endpoint performance and usage metrics",
   "kafka": {

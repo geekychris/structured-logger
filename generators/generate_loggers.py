@@ -58,6 +58,8 @@ def generate_java_logger(config: Dict[str, Any], output_dir: Path) -> None:
     """Generate Java logger wrapper from config."""
     class_name = config["name"]
     topic = config["kafka"]["topic"]
+    version = config.get("version", "1.0.0")
+    log_type = config.get("log_type", class_name.lower())
     fields = config["fields"]
 
     # Generate field declarations
@@ -130,13 +132,15 @@ public class {class_name}Logger extends BaseStructuredLogger {{
 
     private static final String TOPIC_NAME = "{topic}";
     private static final String LOGGER_NAME = "{class_name}";
+    private static final String LOG_TYPE = "{log_type}";
+    private static final String VERSION = "{version}";
 
     public {class_name}Logger() {{
-        super(TOPIC_NAME, LOGGER_NAME);
+        super(TOPIC_NAME, LOGGER_NAME, LOG_TYPE, VERSION);
     }}
 
     public {class_name}Logger(String kafkaBootstrapServers) {{
-        super(TOPIC_NAME, LOGGER_NAME, kafkaBootstrapServers);
+        super(TOPIC_NAME, LOGGER_NAME, LOG_TYPE, VERSION, kafkaBootstrapServers);
     }}
 
     /**
@@ -303,6 +307,52 @@ class {class_name}LoggerBuilder:
     print(f"Generated Python logger: {output_file}")
 
 
+def generate_topic_creation_script(config: Dict[str, Any], output_dir: Path) -> None:
+    """Generate Kafka topic creation script for this log config."""
+    class_name = config["name"]
+    topic = config["kafka"]["topic"]
+    partitions = config["kafka"].get("partitions", 3)
+    replication = config["kafka"].get("replication_factor", 1)
+    retention_ms = config["kafka"].get("retention_ms")
+    
+    script_content = f'''#!/bin/bash
+# Kafka topic creation script for {class_name}
+# Auto-generated - do not edit manually
+
+KAFKA_CONTAINER="kafka"
+BOOTSTRAP_SERVER="localhost:9092"
+
+echo "Creating Kafka topic for {class_name}..."
+
+docker exec $KAFKA_CONTAINER kafka-topics \\
+  --bootstrap-server $BOOTSTRAP_SERVER \\
+  --create \\
+  --if-not-exists \\
+  --topic {topic} \\
+  --partitions {partitions} \\
+  --replication-factor {replication} \\'''
+    
+    if retention_ms:
+        script_content += f'''
+  --config retention.ms={retention_ms} \\'''
+    
+    script_content += f'''
+  || echo "  ✗ Failed (topic may already exist)"
+
+echo "  ✓ Topic {topic} configured ({partitions} partitions, replication: {replication})"
+
+echo ""
+echo "Verify topic:"
+docker exec $KAFKA_CONTAINER kafka-topics --bootstrap-server $BOOTSTRAP_SERVER --describe --topic {topic}
+'''
+    
+    output_file = output_dir / f"create-topic-{topic.replace('_', '-')}.sh"
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_text(script_content)
+    output_file.chmod(0o755)  # Make executable
+    print(f"Generated topic creation script: {output_file}")
+
+
 def main():
     """Main entry point for the generator."""
     parser = argparse.ArgumentParser(
@@ -320,6 +370,11 @@ def main():
         "--python-output",
         default="./python-logger/structured_logging/generated",
         help="Output directory for Python code",
+    )
+    parser.add_argument(
+        "--script-output",
+        default="./scripts",
+        help="Output directory for topic creation scripts",
     )
     parser.add_argument(
         "--lang",
@@ -340,6 +395,9 @@ def main():
 
     if args.lang in ["python", "both"]:
         generate_python_logger(config, Path(args.python_output))
+    
+    # Always generate topic creation script
+    generate_topic_creation_script(config, Path(args.script_output))
 
     print(f"\\nCode generation complete for {config['name']}")
 

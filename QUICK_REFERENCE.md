@@ -97,7 +97,11 @@ pip install -e .
 
 ## Creating New Log Configs
 
-### 1. Create Config File
+**📖 For detailed step-by-step guide, see: [ADDING_NEW_LOGGERS.md](ADDING_NEW_LOGGERS.md)**
+
+### Quick Steps
+
+#### 1. Create Config File
 
 Create `log-configs/my_new_log.json`:
 
@@ -113,7 +117,7 @@ Create `log-configs/my_new_log.json`:
     "retention_ms": 604800000
   },
   "warehouse": {
-    "table_name": "analytics.logs.my_new_log",
+    "table_name": "analytics_logs.my_new_log",
     "partition_by": ["log_date"],
     "sort_by": ["timestamp"],
     "retention_days": 30
@@ -136,31 +140,22 @@ Create `log-configs/my_new_log.json`:
 }
 ```
 
-### 2. Generate Loggers
+#### 2. Generate Loggers
 
 ```bash
-cd structured-logging
-python generators/generate_loggers.py \
-  --config log-configs/my_new_log.json \
-  --java-output generated-loggers/java \
-  --python-output generated-loggers/python
+python generators/generate_loggers.py log-configs/my_new_log.json
 ```
 
-### 3. Copy Config to Docker
+#### 3. Restart Consumer
 
-```bash
-# Copy to the location Spark consumer reads from
-cp log-configs/my_new_log.json ../../../spark-apps/log-configs/
-```
-
-### 4. Restart Consumer
-
-The consumer will automatically pick up the new config on restart:
+**No copying needed!** The `log-configs/` directory is automatically mounted into the Spark container via Docker volumes. Just restart the consumer:
 
 ```bash
 docker exec spark-master pkill -f StructuredLogConsumer
-./start-consumer-s3.sh
+./start-consumer.sh
 ```
+
+The consumer will automatically discover your new config by reading all `.json` files from the mounted directory.
 
 ## Testing
 

@@ -1,5 +1,6 @@
 {
   "name": "UserEvents",
+  "log_type": "user_events",
   "version": "1.0.0",
   "description": "Tracks user interaction events in the application",
   "kafka": {
