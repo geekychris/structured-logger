@@ -3,7 +3,7 @@ Generated structured logger for Tracks user interaction events in the applicatio
 
 Version: 1.0.0
 Kafka Topic: user-events
-Warehouse Table: analytics.logs.user_events
+Warehouse Table: analytics_logs.user_events
 
 DO NOT EDIT - This file is auto-generated from the log config.
 """

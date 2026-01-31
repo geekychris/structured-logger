@@ -13,7 +13,7 @@ docker exec $KAFKA_CONTAINER kafka-topics \
   --if-not-exists \
   --topic api-metrics \
   --partitions 4 \
-  --replication-factor 3 \
+  --replication-factor 1 \
   --config retention.ms=604800000 \
   || echo "  ✗ Failed (topic may already exist)"
 

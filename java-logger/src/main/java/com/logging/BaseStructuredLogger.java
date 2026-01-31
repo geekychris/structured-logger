@@ -72,14 +72,21 @@ public abstract class BaseStructuredLogger implements AutoCloseable {
     }
 
     /**
-     * Publish a log record to Kafka.
+     * Publish a log record to Kafka with envelope containing routing metadata.
      *
      * @param key Partition key (typically user_id or similar)
      * @param logRecord The log record object to publish
      */
     protected void publish(String key, Object logRecord) {
         try {
-            String jsonValue = OBJECT_MAPPER.writeValueAsString(logRecord);
+            // Wrap the log record in an envelope with routing metadata
+            Map<String, Object> envelope = new HashMap<>();
+            envelope.put("_log_type", logType);
+            envelope.put("_log_class", loggerName);
+            envelope.put("_version", version);
+            envelope.put("data", logRecord);
+            
+            String jsonValue = OBJECT_MAPPER.writeValueAsString(envelope);
             ProducerRecord<String, String> record = new ProducerRecord<>(topicName, key, jsonValue);
             
             producer.send(record, (metadata, exception) -> {
@@ -101,7 +108,14 @@ public abstract class BaseStructuredLogger implements AutoCloseable {
      */
     protected void publish(String key, Object logRecord, java.util.function.BiConsumer<Boolean, Exception> callback) {
         try {
-            String jsonValue = OBJECT_MAPPER.writeValueAsString(logRecord);
+            // Wrap the log record in an envelope with routing metadata
+            Map<String, Object> envelope = new HashMap<>();
+            envelope.put("_log_type", logType);
+            envelope.put("_log_class", loggerName);
+            envelope.put("_version", version);
+            envelope.put("data", logRecord);
+            
+            String jsonValue = OBJECT_MAPPER.writeValueAsString(envelope);
             ProducerRecord<String, String> record = new ProducerRecord<>(topicName, key, jsonValue);
             
             producer.send(record, (metadata, exception) -> {

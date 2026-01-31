@@ -59,6 +59,40 @@ structured-logging/
 
 ## Quick Start
 
+### 0. Reset and Rebuild (if needed)
+
+**Interactive mode** (prompts for options):
+```bash
+./reset-and-rebuild.sh
+```
+
+**Automatic mode** (no prompts):
+```bash
+# Basic reset (preserves Kafka data)
+./reset-and-rebuild-auto.sh
+
+# Full reset with Kafka cleanup  
+./reset-and-rebuild-auto.sh --clear-kafka
+
+# Full reset with code regeneration
+./reset-and-rebuild-auto.sh --clear-kafka --regenerate
+```
+
+**What it does:**
+1. Drops all Iceberg tables
+2. Stops Spark consumer
+3. Optionally clears Kafka topics
+4. Optionally regenerates logger code
+5. Rebuilds Java logger
+6. Updates and restarts consumer
+7. Sends test data
+8. Verifies envelope format
+
+**Verify everything works:**
+```bash
+./verify_envelope.sh
+```
+
 ### 1. Create a Log Configuration
 
 Create a JSON file defining your log schema (see `examples/user_events.json`):

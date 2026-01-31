@@ -113,8 +113,16 @@ public class StructuredLogConsumer {
 
         System.out.println("Processing log config: " + config.name + " -> " + config.warehouse.tableName);
 
-        // Create schema from config
-        StructType schema = createSchema(config.fields);
+        // Create schema from config (business data only)
+        StructType dataSchema = createSchema(config.fields);
+        
+        // Create envelope schema with metadata fields
+        StructType envelopeSchema = DataTypes.createStructType(Arrays.asList(
+            DataTypes.createStructField("_log_type", DataTypes.StringType, false),
+            DataTypes.createStructField("_log_class", DataTypes.StringType, false),
+            DataTypes.createStructField("_version", DataTypes.StringType, false),
+            DataTypes.createStructField("data", dataSchema, false)
+        ));
 
         // Read from Kafka
         Dataset<Row> kafkaDF = spark.readStream()
@@ -125,11 +133,11 @@ public class StructuredLogConsumer {
                 .option("failOnDataLoss", "false")
                 .load();
 
-        // Parse JSON and apply schema
+        // Parse JSON with envelope, then extract data field
         Dataset<Row> parsedDF = kafkaDF
                 .selectExpr("CAST(value AS STRING) as json_value")
-                .select(from_json(col("json_value"), schema).as("data"))
-                .select("data.*");
+                .select(from_json(col("json_value"), envelopeSchema).as("envelope"))
+                .select("envelope.data.*");
 
         // Add processing metadata
         Dataset<Row> enrichedDF = parsedDF

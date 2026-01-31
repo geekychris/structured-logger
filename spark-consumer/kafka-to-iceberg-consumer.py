@@ -89,10 +89,18 @@ def process_topic(spark, config):
         .option("failOnDataLoss", "false") \
         .load()
     
-    # Parse JSON
+    # Create envelope schema with metadata fields
+    envelope_schema = StructType([
+        StructField("_log_type", StringType(), False),
+        StructField("_log_class", StringType(), False),
+        StructField("_version", StringType(), False),
+        StructField("data", schema, False)
+    ])
+    
+    # Parse JSON with envelope, then extract data field
     parsed_df = df.select(
-        from_json(col("value").cast("string"), schema).alias("data")
-    ).select("data.*")
+        from_json(col("value").cast("string"), envelope_schema).alias("envelope")
+    ).select("envelope.data.*")
     
     # Convert timestamp fields if needed
     for field in schema.fields:

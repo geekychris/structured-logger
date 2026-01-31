@@ -71,11 +71,11 @@
   </dependencies>
   <properties>
     <scala.binary.version>2.12</scala.binary.version>
+    <maven.compiler.source>11</maven.compiler.source>
+    <jackson.version>2.15.2</jackson.version>
     <maven.compiler.target>11</maven.compiler.target>
     <spark.version>3.4.1</spark.version>
     <iceberg.version>1.4.2</iceberg.version>
-    <maven.compiler.source>11</maven.compiler.source>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <jackson.version>2.15.2</jackson.version>
   </properties>
 </project>

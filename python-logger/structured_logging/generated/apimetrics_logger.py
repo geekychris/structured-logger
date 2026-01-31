@@ -3,7 +3,7 @@ Generated structured logger for API endpoint performance and usage metrics.
 
 Version: 1.0.0
 Kafka Topic: api-metrics
-Warehouse Table: analytics.logs.api_metrics
+Warehouse Table: analytics_logs.api_metrics
 
 DO NOT EDIT - This file is auto-generated from the log config.
 """
