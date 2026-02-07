@@ -188,7 +188,27 @@ See [SCHEMA_EVOLUTION.md](../SCHEMA_EVOLUTION.md) for detailed documentation.
 ## Requirements
 
 All examples require:
-- Python 3.x
-- `kafka-python` package: `pip3 install kafka-python`
+- Python 3.x with virtual environment support
 - Running Kafka instance (docker-compose)
 - Running Spark consumer to process events
+
+### Python Environment Setup
+
+The project uses a Python virtual environment to manage dependencies:
+
+```bash
+# One-time setup: Create venv and install dependencies
+bash setup_python_env.sh
+
+# Or manually:
+python3 -m venv python-logger/venv
+source python-logger/venv/bin/activate
+pip install -r python-logger/requirements.txt
+```
+
+**Note**: The Python example scripts (`python_example.py`, `generate_test_data.py`) are configured to use the virtual environment automatically via their shebang line, so you can run them directly after setup:
+
+```bash
+./examples/python_example.py
+./examples/generate_test_data.py
+```

@@ -59,7 +59,31 @@ structured-logging/
 
 ## Quick Start
 
-### 0. Reset and Rebuild (if needed)
+### 0. Automated Build and Setup (Recommended)
+
+For a comprehensive setup that checks dependencies, builds all components, and offers to run tests:
+
+```bash
+./build-and-setup.sh
+```
+
+**What it does:**
+1. ✓ Checks system dependencies (Docker, Java, Maven, Python)
+2. ✓ Verifies Docker services are running (Kafka, Spark, MinIO, Trino)
+3. ✓ Sets up Python virtual environment
+4. ✓ Builds Java logger library
+5. ✓ Builds Spark consumer
+6. ✓ Optionally generates loggers from configs
+7. ✓ Offers to run test examples
+
+If Docker services are not running, the script will:
+- Show you which services are missing
+- Provide instructions on how to start them
+- Allow you to continue or exit
+
+This is the easiest way to get started!
+
+### Alternative: Reset and Rebuild (if needed)
 
 **Interactive mode** (prompts for options):
 ```bash
@@ -359,9 +383,16 @@ mvn clean package
 ### Python Logger
 
 ```bash
-cd python-logger
-pip install -r requirements.txt
+# One-time setup: Create venv and install dependencies
+bash setup_python_env.sh
+
+# Or manually:
+python3 -m venv python-logger/venv
+source python-logger/venv/bin/activate
+pip install -r python-logger/requirements.txt
 ```
+
+**Note**: Python example scripts are configured to use the virtual environment automatically.
 
 ### Spark Consumer
 

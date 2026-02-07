@@ -18,13 +18,15 @@ public class ApiMetricsLogger extends BaseStructuredLogger {
 
     private static final String TOPIC_NAME = "api-metrics";
     private static final String LOGGER_NAME = "ApiMetrics";
+    private static final String LOG_TYPE = "apimetrics";
+    private static final String VERSION = "1.0.0";
 
     public ApiMetricsLogger() {
-        super(TOPIC_NAME, LOGGER_NAME);
+        super(TOPIC_NAME, LOGGER_NAME, LOG_TYPE, VERSION);
     }
 
     public ApiMetricsLogger(String kafkaBootstrapServers) {
-        super(TOPIC_NAME, LOGGER_NAME, kafkaBootstrapServers);
+        super(TOPIC_NAME, LOGGER_NAME, LOG_TYPE, VERSION, kafkaBootstrapServers);
     }
 
     /**

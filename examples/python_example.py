@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/chris/code/structured-logger/python-logger/venv/bin/python3
 """Example usage of generated structured loggers in Python."""
 
 from datetime import datetime, date
