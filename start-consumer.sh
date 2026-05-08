@@ -9,13 +9,14 @@ echo "Starting Spark consumer with S3/MinIO backend..."
 docker exec -u root spark-master bash -c "mkdir -p /home/spark/.ivy2/cache && chown -R spark:spark /home/spark && mkdir -p /opt/spark-data"
 
 # Start the Python consumer
-docker exec -d spark-master bash -c "/opt/spark/bin/spark-submit \
+docker exec -d spark-master bash -c "AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=admin AWS_SECRET_ACCESS_KEY=password123 /opt/spark/bin/spark-submit \
   --master 'local[*]' \
   --packages org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262,org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.2,software.amazon.awssdk:bundle:2.20.18,software.amazon.awssdk:url-connection-client:2.20.18 \
   --conf spark.hadoop.fs.s3a.access.key=admin \
   --conf spark.hadoop.fs.s3a.secret.key=password123 \
   --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
   --conf spark.hadoop.fs.s3a.path.style.access=true \
+  --conf spark.hadoop.fs.s3a.region=us-east-1 \
   --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
   --conf spark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog \
   --conf spark.sql.catalog.iceberg.type=hive \

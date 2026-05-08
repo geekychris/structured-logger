@@ -148,7 +148,7 @@ public class {class_name}Logger extends BaseStructuredLogger {{
      */
     public void log({", ".join(constructor_params)}) {{
         LogRecord record = new LogRecord({", ".join(to_camel_case(f["name"]) for f in fields)});
-        publish({partition_key_field}, record);
+        publish(String.valueOf({partition_key_field}), record);
     }}
 
     /**
