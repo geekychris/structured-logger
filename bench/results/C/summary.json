@@ -1,0 +1,14 @@
+{
+  "run_id": "C",
+  "mode": "minio-avro",
+  "warmup_s": 0,
+  "duration_s_observed": 195,
+  "records_total": 300000,
+  "records_after_warmup": 300000,
+  "bytes_after_warmup": 45259283,
+  "p50_ms": 11851.515,
+  "p95_ms": 22299.48,
+  "p99_ms": 23477.815,
+  "p999_ms": 24291.981,
+  "max_ms": 24441.98
+}

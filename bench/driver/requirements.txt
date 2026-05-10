@@ -1,0 +1,7 @@
+confluent-kafka==2.5.3
+fastavro==1.9.7
+requests==2.32.3
+boto3==1.35.49
+pyarrow==17.0.0
+zstandard==0.23.0
+python-snappy==0.7.3

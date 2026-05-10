@@ -1,0 +1,14 @@
+{
+  "run_id": "B",
+  "mode": "kafka-avro",
+  "warmup_s": 0,
+  "duration_s_observed": 184,
+  "records_total": 300000,
+  "records_after_warmup": 300000,
+  "bytes_after_warmup": 63063952,
+  "p50_ms": 7.087,
+  "p95_ms": 11.376,
+  "p99_ms": 15.182,
+  "p999_ms": 22.235,
+  "max_ms": 42.657
+}

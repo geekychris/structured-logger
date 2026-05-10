@@ -1,0 +1,337 @@
+{
+  "approaches": {
+    "A": {
+      "approach": "A",
+      "ok": true,
+      "summary": {
+        "run_id": "A",
+        "mode": "kafka-json",
+        "warmup_s": 0,
+        "duration_s_observed": 183,
+        "records_total": 300000,
+        "records_after_warmup": 300000,
+        "bytes_after_warmup": 120005158,
+        "p50_ms": 6.945,
+        "p95_ms": 11.232,
+        "p99_ms": 13.768,
+        "p999_ms": 19.799,
+        "max_ms": 30.728
+      },
+      "containers": {
+        "bench-consumer-A": {
+          "samples": 33,
+          "cpu_avg_pct": 2.82,
+          "cpu_max_pct": 5.31,
+          "mem_avg_mib": 131.4,
+          "mem_max_mib": 136.7,
+          "net_in_mib": 126.0,
+          "net_out_mib": 31.4,
+          "blk_out_mib": 0.0
+        },
+        "bench-kafka": {
+          "samples": 34,
+          "cpu_avg_pct": 26.96,
+          "cpu_max_pct": 116.91,
+          "mem_avg_mib": 947.0,
+          "mem_max_mib": 1048.6,
+          "net_in_mib": 131.0,
+          "net_out_mib": 137.0,
+          "blk_out_mib": 95.1
+        },
+        "bench-driver-A": {
+          "samples": 26,
+          "cpu_avg_pct": 101.99,
+          "cpu_max_pct": 106.49,
+          "mem_avg_mib": 25.7,
+          "mem_max_mib": 26.1,
+          "net_in_mib": 10.9,
+          "net_out_mib": 98.6,
+          "blk_out_mib": 0.0
+        }
+      }
+    },
+    "B": {
+      "approach": "B",
+      "ok": true,
+      "summary": {
+        "run_id": "B",
+        "mode": "kafka-avro",
+        "warmup_s": 0,
+        "duration_s_observed": 184,
+        "records_total": 300000,
+        "records_after_warmup": 300000,
+        "bytes_after_warmup": 63063952,
+        "p50_ms": 7.087,
+        "p95_ms": 11.376,
+        "p99_ms": 15.182,
+        "p999_ms": 22.235,
+        "max_ms": 42.657
+      },
+      "containers": {
+        "bench-consumer-B": {
+          "samples": 33,
+          "cpu_avg_pct": 3.47,
+          "cpu_max_pct": 8.77,
+          "mem_avg_mib": 84.0,
+          "mem_max_mib": 88.8,
+          "net_in_mib": 105.0,
+          "net_out_mib": 30.9,
+          "blk_out_mib": 0.0
+        },
+        "bench-schema-registry": {
+          "samples": 33,
+          "cpu_avg_pct": 1.37,
+          "cpu_max_pct": 16.77,
+          "mem_avg_mib": 489.3,
+          "mem_max_mib": 514.2,
+          "net_in_mib": 0.0,
+          "net_out_mib": 0.0,
+          "blk_out_mib": 0.0
+        },
+        "bench-kafka": {
+          "samples": 34,
+          "cpu_avg_pct": 27.52,
+          "cpu_max_pct": 145.43,
+          "mem_avg_mib": 831.7,
+          "mem_max_mib": 957.7,
+          "net_in_mib": 109.0,
+          "net_out_mib": 115.0,
+          "blk_out_mib": 74.7
+        },
+        "bench-driver-B": {
+          "samples": 25,
+          "cpu_avg_pct": 102.81,
+          "cpu_max_pct": 105.11,
+          "mem_avg_mib": 24.6,
+          "mem_max_mib": 24.8,
+          "net_in_mib": 9.8,
+          "net_out_mib": 75.4,
+          "blk_out_mib": 0.0
+        }
+      }
+    },
+    "C": {
+      "approach": "C",
+      "ok": true,
+      "summary": {
+        "run_id": "C",
+        "mode": "minio-avro",
+        "warmup_s": 0,
+        "duration_s_observed": 195,
+        "records_total": 300000,
+        "records_after_warmup": 300000,
+        "bytes_after_warmup": 45259283,
+        "p50_ms": 11851.515,
+        "p95_ms": 22299.48,
+        "p99_ms": 23477.815,
+        "p999_ms": 24291.981,
+        "max_ms": 24441.98
+      },
+      "containers": {
+        "bench-sidecar-C": {
+          "samples": 26,
+          "cpu_avg_pct": 2.31,
+          "cpu_max_pct": 17.22,
+          "mem_avg_mib": 109.9,
+          "mem_max_mib": 159.6,
+          "net_in_mib": 0.0,
+          "net_out_mib": 51.2,
+          "blk_out_mib": 0.0
+        },
+        "bench-consumer-C": {
+          "samples": 41,
+          "cpu_avg_pct": 3.38,
+          "cpu_max_pct": 77.76,
+          "mem_avg_mib": 80.5,
+          "mem_max_mib": 98.1,
+          "net_in_mib": 51.9,
+          "net_out_mib": 0.0,
+          "blk_out_mib": 0.0
+        },
+        "bench-driver-C": {
+          "samples": 25,
+          "cpu_avg_pct": 97.35,
+          "cpu_max_pct": 102.82,
+          "mem_avg_mib": 24.3,
+          "mem_max_mib": 26.0,
+          "net_in_mib": 0.0,
+          "net_out_mib": 0.0,
+          "blk_out_mib": 133.0
+        }
+      },
+      "minio_object_count": 9,
+      "minio_bytes_mib": 49.14,
+      "minio_raw_input_mib": 129.32,
+      "minio_compression_ratio": 0.38,
+      "minio_records_uploaded": 358315
+    },
+    "D": {
+      "approach": "D",
+      "ok": true,
+      "summary": {
+        "run_id": "D",
+        "mode": "minio-parquet",
+        "warmup_s": 0,
+        "duration_s_observed": 214,
+        "records_total": 300000,
+        "records_after_warmup": 300000,
+        "bytes_after_warmup": 31253722,
+        "p50_ms": 13826.501,
+        "p95_ms": 25779.634,
+        "p99_ms": 33660.606,
+        "p999_ms": 35010.606,
+        "max_ms": 35160.606
+      },
+      "containers": {
+        "bench-sidecar-D": {
+          "samples": 30,
+          "cpu_avg_pct": 0.99,
+          "cpu_max_pct": 5.16,
+          "mem_avg_mib": 110.3,
+          "mem_max_mib": 161.3,
+          "net_in_mib": 0.0,
+          "net_out_mib": 35.4,
+          "blk_out_mib": 0.0
+        },
+        "bench-consumer-D": {
+          "samples": 41,
+          "cpu_avg_pct": 0.43,
+          "cpu_max_pct": 5.28,
+          "mem_avg_mib": 218.4,
+          "mem_max_mib": 268.4,
+          "net_in_mib": 36.7,
+          "net_out_mib": 0.0,
+          "blk_out_mib": 0.2
+        },
+        "bench-driver-D": {
+          "samples": 25,
+          "cpu_avg_pct": 97.63,
+          "cpu_max_pct": 101.27,
+          "mem_avg_mib": 26.6,
+          "mem_max_mib": 28.5,
+          "net_in_mib": 0.0,
+          "net_out_mib": 0.0,
+          "blk_out_mib": 124.5
+        }
+      },
+      "minio_object_count": 8,
+      "minio_bytes_mib": 34.68,
+      "minio_raw_input_mib": 129.95,
+      "minio_compression_ratio": 0.2669,
+      "minio_records_uploaded": 360000
+    },
+    "E": {
+      "approach": "E",
+      "ok": true,
+      "summary": {
+        "run_id": "E",
+        "mode": "kafka-json",
+        "warmup_s": 0,
+        "duration_s_observed": 184,
+        "records_total": 320000,
+        "records_after_warmup": 320000,
+        "bytes_after_warmup": 128003400,
+        "p50_ms": 397.922,
+        "p95_ms": 555.095,
+        "p99_ms": 592.31,
+        "p999_ms": 644.17,
+        "max_ms": 736.088
+      },
+      "containers": {
+        "bench-consumer-E": {
+          "samples": 33,
+          "cpu_avg_pct": 0.53,
+          "cpu_max_pct": 2.1,
+          "mem_avg_mib": 60.4,
+          "mem_max_mib": 65.8,
+          "net_in_mib": 65.9,
+          "net_out_mib": 0.0,
+          "blk_out_mib": 0.0
+        },
+        "bench-driver-E": {
+          "samples": 25,
+          "cpu_avg_pct": 98.61,
+          "cpu_max_pct": 100.84,
+          "mem_avg_mib": 28.3,
+          "mem_max_mib": 28.3,
+          "net_in_mib": 2.1,
+          "net_out_mib": 68.9,
+          "blk_out_mib": 0.0
+        }
+      }
+    }
+  },
+  "cost_extrapolation": {
+    "A": {
+      "rps_observed": 1639.3,
+      "records_per_hour_extrap": 5901639,
+      "cpu_hours_per_1M_rows": 0.2233,
+      "ec2_cost_per_1M_rows": 0.00536,
+      "net_egress_gb_per_1M_rows": 0.869,
+      "msk_brokers_per_hr": 0.63,
+      "msk_cost_per_1M_rows": 0.1067,
+      "transport_cost_per_1M_rows": 0.1067,
+      "total_cost_per_1M_rows": 0.11206
+    },
+    "B": {
+      "rps_observed": 1630.4,
+      "records_per_hour_extrap": 5869565,
+      "cpu_hours_per_1M_rows": 0.2303,
+      "ec2_cost_per_1M_rows": 0.00553,
+      "net_egress_gb_per_1M_rows": 0.72,
+      "msk_brokers_per_hr": 0.63,
+      "msk_cost_per_1M_rows": 0.1073,
+      "transport_cost_per_1M_rows": 0.1073,
+      "total_cost_per_1M_rows": 0.11283
+    },
+    "C": {
+      "rps_observed": 1538.5,
+      "records_per_hour_extrap": 5538461,
+      "cpu_hours_per_1M_rows": 0.186,
+      "ec2_cost_per_1M_rows": 0.00447,
+      "net_egress_gb_per_1M_rows": 0.167,
+      "s3_puts_per_1M_rows": 30.0,
+      "s3_put_cost_per_1M_rows": 0.00015,
+      "s3_storage_gb_per_1M_rows": 0.16,
+      "s3_storage_cost_per_1M_rows_per_month": 0.00368,
+      "transport_cost_per_1M_rows": 0.00383,
+      "total_cost_per_1M_rows": 0.0083
+    },
+    "D": {
+      "rps_observed": 1401.9,
+      "records_per_hour_extrap": 5046728,
+      "cpu_hours_per_1M_rows": 0.1963,
+      "ec2_cost_per_1M_rows": 0.00471,
+      "net_egress_gb_per_1M_rows": 0.115,
+      "s3_puts_per_1M_rows": 26.7,
+      "s3_put_cost_per_1M_rows": 0.00013,
+      "s3_storage_gb_per_1M_rows": 0.1129,
+      "s3_storage_cost_per_1M_rows_per_month": 0.0026,
+      "transport_cost_per_1M_rows": 0.00273,
+      "total_cost_per_1M_rows": 0.00744
+    },
+    "E": {
+      "rps_observed": 1739.1,
+      "records_per_hour_extrap": 6260869,
+      "cpu_hours_per_1M_rows": 0.1583,
+      "ec2_cost_per_1M_rows": 0.0038,
+      "net_egress_gb_per_1M_rows": 0.21,
+      "wire_gb_per_1M_rows": 0.3725,
+      "warpstream_ingest_cost_per_1M_rows": 0.07451,
+      "s3_storage_gb_per_1M_rows": 0.0,
+      "s3_storage_cost_per_1M_rows_per_month": 0.0,
+      "transport_cost_per_1M_rows": 0.07451,
+      "total_cost_per_1M_rows": 0.07831
+    }
+  },
+  "prices_used": {
+    "msk_broker_hour_kafka_m_large": 0.21,
+    "msk_storage_gb_month": 0.1,
+    "s3_storage_gb_month": 0.023,
+    "s3_put_per_1000": 0.005,
+    "s3_get_per_1000": 0.0004,
+    "ec2_vcpu_hour_m6i": 0.024,
+    "data_transfer_gb": 0.0,
+    "warpstream_per_gb": 0.2
+  }
+}

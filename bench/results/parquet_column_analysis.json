@@ -1,0 +1,248 @@
+{
+  "n_records": 50000,
+  "raw_jsonl_bytes": 18797157,
+  "cardinality_per_column": {
+    "produced_at_ns": 50000,
+    "timestamp": 50000,
+    "event_date": 1,
+    "user_id": 5912,
+    "session_id": 3309,
+    "event_type": 7,
+    "page_url": 49994,
+    "device_type": 3,
+    "duration_ms": 4950,
+    "properties_json": 50000
+  },
+  "raw_jsonl_bytes_per_column": {
+    "produced_at_ns": 950000,
+    "timestamp": 1350000,
+    "event_date": 500000,
+    "user_id": 650000,
+    "session_id": 650000,
+    "event_type": 292777,
+    "page_url": 798688,
+    "device_type": 316806,
+    "duration_ms": 189886,
+    "properties_json": 5299000
+  },
+  "whole_file_bytes": {
+    "uncompressed+dict": 9198769,
+    "snappy+dict": 7139064,
+    "zstd+dict": 5072827,
+    "zstd-no-dict": 4976077
+  },
+  "per_column_zstd_dict": [
+    {
+      "column": "produced_at_ns",
+      "uncompressed": 497854,
+      "compressed": 201850,
+      "encodings": [
+        "PLAIN",
+        "RLE",
+        "RLE_DICTIONARY"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "timestamp",
+      "uncompressed": 1616549,
+      "compressed": 215322,
+      "encodings": [
+        "PLAIN",
+        "RLE",
+        "RLE_DICTIONARY"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "event_date",
+      "uncompressed": 214,
+      "compressed": 250,
+      "encodings": [
+        "PLAIN",
+        "RLE",
+        "RLE_DICTIONARY"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "user_id",
+      "uncompressed": 182077,
+      "compressed": 96886,
+      "encodings": [
+        "PLAIN",
+        "RLE",
+        "RLE_DICTIONARY"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "session_id",
+      "uncompressed": 131575,
+      "compressed": 83179,
+      "encodings": [
+        "PLAIN",
+        "RLE",
+        "RLE_DICTIONARY"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "event_type",
+      "uncompressed": 19082,
+      "compressed": 18982,
+      "encodings": [
+        "PLAIN",
+        "RLE",
+        "RLE_DICTIONARY"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "page_url",
+      "uncompressed": 1096495,
+      "compressed": 649672,
+      "encodings": [
+        "PLAIN",
+        "RLE",
+        "RLE_DICTIONARY"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "device_type",
+      "uncompressed": 12805,
+      "compressed": 10476,
+      "encodings": [
+        "PLAIN",
+        "RLE",
+        "RLE_DICTIONARY"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "duration_ms",
+      "uncompressed": 121203,
+      "compressed": 90567,
+      "encodings": [
+        "PLAIN",
+        "RLE",
+        "RLE_DICTIONARY"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "properties_json",
+      "uncompressed": 5518396,
+      "compressed": 3703142,
+      "encodings": [
+        "PLAIN",
+        "RLE",
+        "RLE_DICTIONARY"
+      ],
+      "compression": "ZSTD"
+    }
+  ],
+  "per_column_zstd_no_dict": [
+    {
+      "column": "produced_at_ns",
+      "uncompressed": 400231,
+      "compressed": 108516,
+      "encodings": [
+        "RLE",
+        "PLAIN"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "timestamp",
+      "uncompressed": 1550285,
+      "compressed": 151710,
+      "encodings": [
+        "RLE",
+        "PLAIN"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "event_date",
+      "uncompressed": 700179,
+      "compressed": 338,
+      "encodings": [
+        "RLE",
+        "PLAIN"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "user_id",
+      "uncompressed": 850201,
+      "compressed": 126838,
+      "encodings": [
+        "RLE",
+        "PLAIN"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "session_id",
+      "uncompressed": 850201,
+      "compressed": 118401,
+      "encodings": [
+        "RLE",
+        "PLAIN"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "event_type",
+      "uncompressed": 492927,
+      "compressed": 63644,
+      "encodings": [
+        "RLE",
+        "PLAIN"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "page_url",
+      "uncompressed": 998926,
+      "compressed": 559109,
+      "encodings": [
+        "RLE",
+        "PLAIN"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "device_type",
+      "uncompressed": 516968,
+      "compressed": 45243,
+      "encodings": [
+        "RLE",
+        "PLAIN"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "duration_ms",
+      "uncompressed": 400231,
+      "compressed": 114174,
+      "encodings": [
+        "RLE",
+        "PLAIN"
+      ],
+      "compression": "ZSTD"
+    },
+    {
+      "column": "properties_json",
+      "uncompressed": 5500434,
+      "compressed": 3685741,
+      "encodings": [
+        "RLE",
+        "PLAIN"
+      ],
+      "compression": "ZSTD"
+    }
+  ]
+}

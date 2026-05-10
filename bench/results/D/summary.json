@@ -1,0 +1,14 @@
+{
+  "run_id": "D",
+  "mode": "minio-parquet",
+  "warmup_s": 0,
+  "duration_s_observed": 214,
+  "records_total": 300000,
+  "records_after_warmup": 300000,
+  "bytes_after_warmup": 31253722,
+  "p50_ms": 13826.501,
+  "p95_ms": 25779.634,
+  "p99_ms": 33660.606,
+  "p999_ms": 35010.606,
+  "max_ms": 35160.606
+}

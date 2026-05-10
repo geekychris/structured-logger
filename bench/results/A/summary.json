@@ -1,0 +1,14 @@
+{
+  "run_id": "A",
+  "mode": "kafka-json",
+  "warmup_s": 0,
+  "duration_s_observed": 183,
+  "records_total": 300000,
+  "records_after_warmup": 300000,
+  "bytes_after_warmup": 120005158,
+  "p50_ms": 6.945,
+  "p95_ms": 11.232,
+  "p99_ms": 13.768,
+  "p999_ms": 19.799,
+  "max_ms": 30.728
+}
