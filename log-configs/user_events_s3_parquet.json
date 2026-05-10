@@ -1,0 +1,29 @@
+{
+  "name": "UserEventsS3Parquet",
+  "log_type": "user_events",
+  "version": "1.0.0",
+  "description": "User events landed via sidecar→S3 (Parquet+Zstd) — Approach D",
+  "kafka": {"topic": "user-events"},
+  "warehouse": {"table_name": "analytics_logs.user_events_s3_parquet"},
+  "fields": [
+    {"name": "timestamp", "type": "string", "required": true},
+    {"name": "event_date", "type": "string", "required": true},
+    {"name": "user_id", "type": "string", "required": true},
+    {"name": "session_id", "type": "string", "required": true},
+    {"name": "event_type", "type": "string", "required": true},
+    {"name": "page_url", "type": "string", "required": false},
+    {"name": "device_type", "type": "string", "required": false},
+    {"name": "duration_ms", "type": "long", "required": false}
+  ],
+  "transport": {
+    "sinks": ["s3"],
+    "s3": {
+      "bucket": "lakehouse",
+      "endpoint": "http://minio:9000",
+      "region": "us-east-1",
+      "path_style": true,
+      "encoding": "parquet",
+      "key_prefix": "user_events_parquet"
+    }
+  }
+}

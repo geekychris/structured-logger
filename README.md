@@ -11,6 +11,214 @@ A metadata-driven structured logging framework that generates type-safe loggers 
 - **Spark Processing**: Real-time stream processing with 10-second micro-batches
 - **Trino Queries**: SQL access to Iceberg tables for analytics and monitoring
 
+## Transport Benchmark
+
+A standalone harness in [`bench/`](bench/) compares five ways to deliver records into a warehouse-ready landing zone — Kafka+JSON, Kafka+Avro+Schema-Registry, sidecar→S3+Avro, sidecar→S3+Parquet+Zstd, and WarpStream — on latency, CPU, network, storage, and cost per million rows. Headline finding: Kafka delivers ~7 ms p50 for ~$0.11/M rows; sidecar→S3+Parquet is **15× cheaper** but ~12 s p50; WarpStream sits between at ~400 ms p50. Full report with Mermaid diagrams, per-column Parquet compression analysis, and reproducible commands: **[bench/REPORT.md](bench/REPORT.md)**.
+
+## Approach availability
+
+All five approaches the bench measured are now wired into the production loggers AND end-to-end into Iceberg/Trino. Pick one per `log-configs/*.json`:
+
+| Approach | Configure with | Java | Python | Lands in Iceberg via | Trino-queryable |
+|---|---|:-:|:-:|---|:-:|
+| **A** Kafka + JSON+Snappy | `transport.sinks: ["kafka"]` (default) | ✅ | ✅ | `kafka-to-iceberg-consumer.py` | ✅ |
+| **B** Kafka + Avro+SR | `transport.sinks: ["kafka"], encoding: "avro", schema_registry_url: ...` | ✅ | ✅ | `kafka-to-iceberg-consumer.py` (auto-detects encoding via `from_avro`) | ✅ |
+| **C** Sidecar → S3 Avro | `transport.sinks: ["s3"], s3.encoding: "avro"` (in-process) **or** `transport.sinks: ["file"]` + run a separate sidecar process | ✅ | ✅ | `s3-to-iceberg-consumer.py` (`readStream.format("avro")`) | ✅ |
+| **D** Sidecar → S3 Parquet+Zstd | same as C with `s3.encoding: "parquet"` | ✅ | ✅ | `s3-to-iceberg-consumer.py` (`readStream.format("parquet")`) | ✅ |
+| **E** WarpStream | `transport.sinks: ["kafka"]`, point `KAFKA_BOOTSTRAP_SERVERS` at WarpStream agent | ✅ (zero code change — Kafka API compatible) | ✅ | `kafka-to-iceberg-consumer.py` | ✅ |
+
+### Bringing up the lakehouse stack
+
+This project depends on the [`spark_minio_trino`](https://github.com/geekychris/spark_minio_trino) lakehouse for Spark, Hive Metastore, MinIO, Kafka, and Trino. Clone it next to this project:
+
+```bash
+git clone https://github.com/geekychris/spark_minio_trino.git ../spark_minio_trino
+```
+
+The default ports it uses (5432, 8081, 9092, ...) collide with other infrastructure on a typical dev machine running multiple stacks. Use the included override file to remap them to a coordinated, devportal-allocated range:
+
+```bash
+docker compose -f ../spark_minio_trino/docker-compose.yml -f lakehouse-override.yml up -d
+```
+
+Host port map (anchored on devportal-allocated `spark-minio-trino:http=18013`):
+
+| Service | Host port | Container port | Used for |
+|---|---|---|---|
+| MinIO API | 18000 | 9000 | S3 client → MinIO |
+| MinIO console | 18001 | 9001 | Browser UI (`http://127.0.0.1:18001`, `admin`/`password123`) |
+| **Trino** | **18013** | 8080 | SQL client; `http://127.0.0.1:18013/ui/` |
+| Postgres | 15432 | 5432 | Hive metastore backend |
+| Hive Metastore | 18083 | 9083 | Iceberg catalog |
+| Spark master UI | 18082 | 8080 | `http://127.0.0.1:18082` |
+| Spark master | 18077 | 7077 | Spark cluster coord |
+| Schema Registry | 18081 | 8081 | Used by Approach B |
+| Kafka (host clients) | 18092 | 9092 | Producers from your laptop |
+| Zookeeper | 18181 | 2181 | Kafka coordination |
+
+Container-to-container traffic on `lakehouse-network` is unchanged (`kafka:29092`, `hive-metastore:9083`, `minio:9000`, `schema-registry:8081`), so the consumer code never sees the remapped ports — only host-side scripts do.
+
+### Running the consumers
+
+```bash
+# Kafka source only (approaches A, B, E) — the historical default
+./start-consumer.sh kafka
+
+# S3 file source only (approaches C, D)
+./start-consumer.sh s3
+
+# Both consumers in parallel
+./start-consumer.sh both
+```
+
+Both consumers iterate `log-configs/*.json` and start one streaming query per matching log type:
+- The **Kafka consumer** picks up configs whose `transport.sinks` includes `"kafka"` (or no `transport` block at all = default to kafka). Skips s3-only configs cleanly.
+- The **S3 consumer** picks up configs whose `transport.sinks` includes `"s3"`. Skips kafka-only configs.
+
+Both write to the same `iceberg.analytics_logs.*` namespace, so Trino can't tell which transport delivered the rows.
+
+The Spark `--packages` list bundles `org.apache.spark:spark-avro_2.12:3.5.0` — required by the Avro Kafka decoder (B) and the Avro file reader (C).
+
+### Per-approach config recipes
+
+Add a `transport` block to your `log-configs/<name>.json`. The `STRUCTURED_LOG_SINKS` env var overrides `transport.sinks` at runtime, so you can swap transports per environment without rebuilding.
+
+**A — Kafka + JSON+Snappy** (the default; can be omitted entirely):
+```json
+{
+  "transport": {
+    "sinks": ["kafka"],
+    "encoding": "json",
+    "kafka": {"compression": "snappy"}
+  }
+}
+```
+
+**B — Kafka + Avro + Schema Registry** (~half the wire bytes vs JSON):
+```json
+{
+  "transport": {
+    "sinks": ["kafka"],
+    "encoding": "avro",
+    "schema_registry_url": "http://schema-registry:8081"
+  }
+}
+```
+The Avro schema for the envelope is *derived from your `fields` array* at startup and registered with Schema Registry. The Spark consumer will auto-detect `encoding: "avro"` and decode Confluent-wire-format Avro.
+
+**C — Sidecar pattern → S3 (Avro)**:
+
+Two deployment styles:
+
+*In-process sidecar* (the application contains the S3-uploader thread):
+```json
+{
+  "transport": {
+    "sinks": ["s3"],
+    "s3": {
+      "bucket": "my-logs",
+      "endpoint": "http://minio:9000",
+      "path_style": true,
+      "encoding": "avro",
+      "rotate_seconds": 30,
+      "rotate_bytes": 16777216,
+      "max_records": 50000,
+      "key_prefix": "user_events"
+    }
+  }
+}
+```
+
+*External sidecar process* (app writes NDJSON to disk, separate process tails and ships):
+```json
+{ "transport": { "sinks": ["file"], "file": { "dir": "/var/log/app" } } }
+```
+On the same host (or pod), run a sidecar that points at `/var/log/app` and ships somewhere — see Java's `com.logging.sidecar.Sidecar` (already wired up) or use the standalone Python sidecar in `bench/driver/sidecar.py` as a starting point.
+
+**D — Sidecar / in-process → S3 (Parquet+Zstd)** — same as C with `"encoding": "parquet"`. Beats Avro on at-rest compression by ~30% (see the per-column analysis in [bench/REPORT.md](bench/REPORT.md#why-parquetzstd-compresses-so-well--column-by-column)).
+
+**E — WarpStream** — no config change, just point at a WarpStream agent:
+```bash
+export KAFKA_BOOTSTRAP_SERVERS=warpstream-agent.local:9092
+```
+Use either approach A or B's config; WarpStream speaks the Kafka protocol natively. Trade ~400 ms latency for no broker hours.
+
+### End-to-end verification (Trino query)
+
+A driver script `test_e2e.py` exercises every approach against the running lakehouse and prints the verification queries. Sample run output (after 5 records pushed via each approach):
+
+```
+>>> Approach A: Kafka + JSON+Snappy
+  pushed 5 records via kafka_json[user-events]
+
+>>> Approach B: Kafka + Avro+SR
+  pushed 5 records via kafka_avro[user-events-avro sr_id=1]
+
+>>> Approach C: Sidecar→S3 Avro (in-process)
+  pushed 5 records via s3[lakehouse enc=avro]
+
+>>> Approach D: Sidecar→S3 Parquet+Zstd (in-process)
+  pushed 5 records via s3[lakehouse enc=parquet]
+```
+
+After ~30s of micro-batch settle time, query each landed table from Trino:
+
+```bash
+docker exec trino trino --server localhost:8080 --execute "
+  SELECT 'A: kafka+json'         AS approach, COUNT(*) FROM iceberg.analytics_logs.user_events
+  UNION ALL SELECT 'B: kafka+avro+SR',         COUNT(*) FROM iceberg.analytics_logs.user_events_kafka_avro
+  UNION ALL SELECT 'C: sidecar→s3 avro',       COUNT(*) FROM iceberg.analytics_logs.user_events_s3_avro
+  UNION ALL SELECT 'D: sidecar→s3 parquet',    COUNT(*) FROM iceberg.analytics_logs.user_events_s3_parquet
+"
+```
+
+Trino UI at `http://127.0.0.1:18013/ui/` (no login required for default Trino).
+
+**Sample log configs** for each approach are in `log-configs/`:
+- `user_events.json` — Approach A (default kafka+json)
+- `user_events_kafka_avro.json` — Approach B (kafka+avro+SR)
+- `user_events_s3_avro.json` — Approach C (in-process s3 sink, Avro)
+- `user_events_s3_parquet.json` — Approach D (in-process s3 sink, Parquet+Zstd)
+
+**Verifying without the lakehouse stack**: `spark-consumer/test_schema_contract.py` brings up just MinIO and confirms the bytes the sidecar writes are exactly what the s3 consumer expects to read. Useful when iterating on schemas:
+
+```bash
+cd bench && docker compose up -d minio minio-init
+cd .. && python3 spark-consumer/test_schema_contract.py
+```
+
+### Common gotchas
+
+If you're bringing this up fresh, these are the things that bit me during integration:
+
+- **Kafka producer hangs on metadata refresh** → the override file's `KAFKA_ADVERTISED_LISTENERS` must use `127.0.0.1` not `localhost` (macOS Docker port-mapping is IPv4-only; kafka-python's metadata refresh resolves `localhost` to `::1` and silently times out).
+- **Kafka `UnrecognizedBrokerVersion`** → kafka-python's auto-version-detect is fragile against Confluent 7.x; the project's sinks pin `api_version=(2,5,0)`.
+- **Spark consumer can't find spark-avro classes** → the `--packages` list in `start-consumer.sh` includes `org.apache.spark:spark-avro_2.12:3.5.0`. If you forked the script, keep that.
+- **Avro schema fetched as 404 at consumer startup** → the consumer fetches the schema at query setup, not at message-consumption time. Run a producer at least once before starting the consumer, or restart the consumer after first records flow.
+- **`Field _ingestion_timestamp not found in source schema`** → the s3 consumer used to add this column; removed for parity with the kafka consumer. If you want it, add to BOTH consumers AND to the table DDL in `_create_iceberg_table_if_not_exists`.
+
+### Composing sinks (fan-out)
+
+Multiple sinks compose left-to-right via `CompositeSink`:
+```json
+{ "transport": { "sinks": ["kafka", "file"] } }
+```
+The application publishes once; each record goes to both Kafka and the local NDJSON file. Useful for migration ("write to both during cutover, switch downstream consumers, then drop one") and for cheap local debugging (`["kafka", "slf4j"]`).
+
+### Env-var overrides (operations layer)
+
+Operators can override per-deployment without rebuilding:
+```bash
+STRUCTURED_LOG_SINKS=KAFKA,FILE        # override transport.sinks
+KAFKA_BOOTSTRAP_SERVERS=broker:9092
+SCHEMA_REGISTRY_URL=http://sr:8081
+STRUCTURED_LOG_FILE_DIR=/var/log/app
+STRUCTURED_LOG_S3_BUCKET=my-logs
+STRUCTURED_LOG_S3_ENDPOINT=http://minio:9000
+STRUCTURED_LOG_S3_ENCODING=parquet
+```
+Java and Python both honor the same env-var contract.
+
 ## Architecture
 
 ```

@@ -13,15 +13,45 @@ from typing import Optional, Dict, List, Any
 from structured_logging.base_logger import BaseStructuredLogger
 
 
+# Field definitions and transport config baked in at generation time.
+# Used by BaseStructuredLogger to derive Avro schemas (for the kafka-avro
+# and s3-avro/parquet sinks) and to build the sink chain.
+_FIELDS = [   {'name': 'timestamp', 'type': 'timestamp', 'required': True, 'description': 'Metric timestamp'},
+    {'name': 'metric_date', 'type': 'date', 'required': True, 'description': 'Date for partitioning'},
+    {'name': 'service_name', 'type': 'string', 'required': True, 'description': 'Name of the service'},
+    {'name': 'endpoint', 'type': 'string', 'required': True, 'description': 'API endpoint path'},
+    {'name': 'method', 'type': 'string', 'required': True, 'description': 'HTTP method (GET, POST, etc.)'},
+    {'name': 'status_code', 'type': 'int', 'required': True, 'description': 'HTTP status code'},
+    {'name': 'response_time_ms', 'type': 'long', 'required': True, 'description': 'Response time in milliseconds'},
+    {'name': 'request_size_bytes', 'type': 'long', 'required': False, 'description': 'Request payload size'},
+    {'name': 'response_size_bytes', 'type': 'long', 'required': False, 'description': 'Response payload size'},
+    {'name': 'user_id', 'type': 'string', 'required': False, 'description': 'User identifier if authenticated'},
+    {'name': 'client_ip', 'type': 'string', 'required': False, 'description': 'Client IP address'},
+    {'name': 'error_message', 'type': 'string', 'required': False, 'description': 'Error message if request failed'}]
+_TRANSPORT = None
+
+
 class ApiMetricsLogger(BaseStructuredLogger):
     """Structured logger for ApiMetrics events."""
 
-    def __init__(self, kafka_bootstrap_servers: Optional[str] = None):
-        """Initialize the ApiMetrics logger."""
+    def __init__(self, kafka_bootstrap_servers: Optional[str] = None,
+                 transport: Optional[Dict[str, Any]] = None,
+                 sink=None):
+        """Initialize the ApiMetrics logger.
+
+        transport overrides the config-baked default; sink overrides everything
+        (useful for tests). STRUCTURED_LOG_SINKS env var overrides transport.sinks.
+        """
         super().__init__(
             topic_name="api-metrics",
             logger_name="ApiMetrics",
             kafka_bootstrap_servers=kafka_bootstrap_servers,
+            log_type="api_metrics",
+            log_class="ApiMetrics",
+            version="1.0.0",
+            fields=_FIELDS,
+            transport=transport if transport is not None else _TRANSPORT,
+            sink=sink,
         )
 
     def log(

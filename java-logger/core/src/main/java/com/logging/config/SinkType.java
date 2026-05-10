@@ -18,7 +18,9 @@ public enum SinkType {
     /** Publishes to a Kafka topic. */
     KAFKA,
     /** Publishes to a NATS JetStream subject. */
-    NATS;
+    NATS,
+    /** Batches envelopes in memory and flushes to S3 as Avro+Snappy or Parquet+Zstd objects. */
+    S3;
 
     public static SinkType parse(String raw) {
         if (raw == null) throw new IllegalArgumentException("Sink type may not be null");

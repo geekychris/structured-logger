@@ -65,6 +65,31 @@ public abstract class BaseStructuredLogger implements AutoCloseable {
                 true);
     }
 
+    /**
+     * Build sinks from {@link LoggerConfig} with field metadata. AvroKafkaSink
+     * and S3BatchSink need fields to derive their schemas — generated loggers
+     * prefer this constructor over the field-less variant.
+     */
+    protected BaseStructuredLogger(String topicName, String loggerName, String logType, String version,
+                                   LoggerConfig config,
+                                   java.util.List<java.util.Map<String, Object>> fields) {
+        this(topicName, loggerName, logType, version,
+                SinkFactory.build(config,
+                        new SinkFactory.LoggerContext(topicName, logType, loggerName,
+                                fileBaseFor(loggerName), fields)),
+                true);
+    }
+
+    /**
+     * Like the no-config constructor but with field metadata so Avro/S3 sinks
+     * can self-configure when STRUCTURED_LOG_SINKS env is set.
+     */
+    protected BaseStructuredLogger(String topicName, String loggerName, String logType, String version,
+                                   java.util.List<java.util.Map<String, Object>> fields) {
+        this(topicName, loggerName, logType, version,
+                resolveSinkFromEnvironment(topicName, logType, loggerName, fields), true);
+    }
+
     /** Inject a sink directly (tests, custom transports). */
     protected BaseStructuredLogger(String topicName, String loggerName, String logType, String version,
                                    LogSink sink) {
@@ -87,12 +112,18 @@ public abstract class BaseStructuredLogger implements AutoCloseable {
      * declared sink list; otherwise fall back to the legacy single-Kafka behaviour.
      */
     private static LogSink resolveSinkFromEnvironment(String topicName, String logType, String loggerName) {
+        return resolveSinkFromEnvironment(topicName, logType, loggerName, java.util.Collections.emptyList());
+    }
+
+    private static LogSink resolveSinkFromEnvironment(String topicName, String logType, String loggerName,
+                                                      java.util.List<java.util.Map<String, Object>> fields) {
         String declared = System.getenv("STRUCTURED_LOG_SINKS");
         if (declared == null) declared = System.getProperty("STRUCTURED_LOG_SINKS");
         if (declared != null && !declared.isBlank()) {
             LoggerConfig config = LoggerConfig.fromEnvironment();
             return SinkFactory.build(config,
-                    new SinkFactory.LoggerContext(topicName, logType, fileBaseFor(loggerName)));
+                    new SinkFactory.LoggerContext(topicName, logType, loggerName,
+                            fileBaseFor(loggerName), fields));
         }
         String bootstrap = System.getenv("KAFKA_BOOTSTRAP_SERVERS");
         if (bootstrap == null || bootstrap.isBlank()) bootstrap = "localhost:9092";

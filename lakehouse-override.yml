@@ -1,0 +1,116 @@
+# Port-override file for the spark_minio_trino lakehouse stack.
+#
+# Many ports (postgres 5432, kafka 9092/29092, trino 8081) collide with
+# other things on a developer machine running multiple stacks under k8s.
+# This override remaps HOST ports to a 18000–18099 range coordinated with
+# devportal (asset spark-minio-trino has port slot http=18013 allocated).
+#
+# Container-internal ports stay identical so the structured-logging code
+# (which uses kafka:29092, hive-metastore:9083 etc. via the docker network)
+# does not change.
+#
+# Bring up:
+#   docker compose -f ../spark_minio_trino/docker-compose.yml \
+#                  -f lakehouse-override.yml \
+#                  up -d
+#
+# Tear down:
+#   docker compose -f ../spark_minio_trino/docker-compose.yml \
+#                  -f lakehouse-override.yml \
+#                  down -v
+#
+# Host port map after this override:
+#   18000  → MinIO API       (container 9000)
+#   18001  → MinIO console   (container 9001)
+#   18013  → Trino UI/API    (container 8080) — the devportal-allocated slot
+#   18077  → Spark master    (container 7077)
+#   18082  → Spark UI        (container 8080)
+#   18083  → Hive Metastore  (container 9083) — rarely needed from host
+#   18092  → Kafka external  (container 9092) — needed by host-side producers
+#   18181  → Zookeeper       (container 2181)
+#   15432  → Postgres        (container 5432) — Hive metastore backend
+#
+# Internal communication on lakehouse-network is unchanged: kafka:29092,
+# hive-metastore:9083, minio:9000, etc.
+
+services:
+  minio:
+    ports:
+      - "18000:9000"
+      - "18001:9001"
+
+  postgres:
+    ports:
+      - "15432:5432"
+
+  hive-metastore:
+    ports:
+      - "18083:9083"
+
+  spark-master:
+    ports:
+      - "18082:8080"
+      - "18077:7077"
+
+  zookeeper:
+    ports:
+      - "18181:2181"
+
+  kafka:
+    ports:
+      # Container listens on 9092 internally (PLAINTEXT_HOST listener); mapped
+      # to host 18092. We pin KAFKA_LISTENERS below so Confluent's image
+      # doesn't auto-derive listener ports from advertised ports — otherwise
+      # it would set the in-container listener to 18092 and break this map.
+      - "18092:9092"
+      - "29092:29092"  # internal port for inter-container traffic
+    environment:
+      # Pin both listeners and advertised listeners. Container listens on
+      # 9092 (host-mapped) and 29092 (in-network). Advertise:
+      #   - PLAINTEXT://kafka:29092          → other containers on lakehouse-network
+      #   - PLAINTEXT_HOST://127.0.0.1:18092 → macOS host clients
+      # 127.0.0.1 instead of localhost: macOS Docker port mapping is IPv4-only,
+      # and "localhost" may resolve to ::1 first → kafka-python fails metadata
+      # refresh after the initial bootstrap connect.
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://127.0.0.1:18092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+    # The default healthcheck connects to localhost:9092, gets redirected to
+    # localhost:18092 (advertised listener), then fails because :18092 isn't
+    # reachable from inside the container. Use the internal listener instead.
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "kafka:29092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  trino:
+    ports:
+      - "18013:8080"
+
+  # Schema Registry is not in spark_minio_trino's base compose. We add it here
+  # because Approach B (Kafka + Avro + Schema Registry) requires it. Both
+  # producers (host or container) and the Spark consumer talk to it via the
+  # `lakehouse-network` (container hostname `schema-registry:8081`). Host port
+  # 18081 is for direct-curl debugging.
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.5.0
+    container_name: schema-registry
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "18081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    networks:
+      - lakehouse-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/subjects || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30

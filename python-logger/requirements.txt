@@ -1,2 +1,14 @@
 kafka-python-ng>=2.2.0
 six>=1.17.0
+
+# Optional, lazily imported (only loaded when the relevant sink is used):
+# - fastavro / requests   for KafkaAvroSink (Schema Registry)
+# - boto3 / pyarrow       for S3BatchSink
+# We list them here so `pip install -r requirements.txt` gives users the full
+# surface area; remove if you want a minimal install.
+fastavro>=1.9.7
+requests>=2.32.3
+boto3>=1.35.49
+pyarrow>=17.0.0
+zstandard>=0.23.0
+python-snappy>=0.7.3

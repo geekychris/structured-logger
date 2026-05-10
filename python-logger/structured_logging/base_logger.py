@@ -1,18 +1,37 @@
-"""Base structured logger for Kafka publishing."""
+"""Base structured logger with pluggable sinks.
 
-import json
+The historical signature `BaseStructuredLogger(topic_name, logger_name, kafka_bootstrap_servers)`
+still works — it constructs a default JSON+Snappy Kafka sink, matching the
+previous behaviour but with snappy compression turned ON (it was off before).
+
+Generated loggers built with the new generator pass log_type, log_class,
+version, fields, and an optional `transport` config to enable sink chains.
+"""
+from __future__ import annotations
+
 import logging
-import os
-from datetime import datetime, date
-from typing import Any, Dict, Optional, Callable
-from kafka import KafkaProducer
-from kafka.errors import KafkaError
+from datetime import date, datetime
+from typing import Any, Callable, Dict, List, Optional
+
+from .sinks import LogEnvelope, LogSink
+from .sinks.factory import build_sink
 
 
 class BaseStructuredLogger:
-    """
-    Base class for structured logging to Kafka.
-    Provides common functionality for serialization and publishing.
+    """Base class for structured logging via pluggable sinks.
+
+    Constructors:
+      Modern:
+        BaseStructuredLogger(topic_name, logger_name, log_type=..., log_class=...,
+                             version=..., fields=..., transport=...)
+        — builds the sink chain via build_sink().
+
+      Legacy (kept for back-compat):
+        BaseStructuredLogger(topic_name, logger_name, kafka_bootstrap_servers=None)
+        — constructs a default Kafka+JSON+Snappy sink.
+
+      Direct sink injection (for tests):
+        BaseStructuredLogger(topic_name, logger_name, sink=my_sink)
     """
 
     def __init__(
@@ -20,118 +39,78 @@ class BaseStructuredLogger:
         topic_name: str,
         logger_name: str,
         kafka_bootstrap_servers: Optional[str] = None,
-    ):
-        """
-        Initialize the base structured logger.
-
-        Args:
-            topic_name: Kafka topic to publish to
-            logger_name: Name of this logger for identification
-            kafka_bootstrap_servers: Kafka bootstrap servers (defaults to env var or localhost)
-        """
+        *,
+        log_type: Optional[str] = None,
+        log_class: Optional[str] = None,
+        version: str = "1.0.0",
+        fields: Optional[List[Dict[str, Any]]] = None,
+        transport: Optional[Dict[str, Any]] = None,
+        sink: Optional[LogSink] = None,
+    ) -> None:
         self.topic_name = topic_name
         self.logger_name = logger_name
+        self.log_type = log_type or logger_name.lower()
+        self.log_class = log_class or logger_name
+        self.version = version
         self.logger = logging.getLogger(f"structured_logging.{logger_name}")
 
-        bootstrap_servers = kafka_bootstrap_servers or os.getenv(
-            "KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"
-        )
-
-        self.producer = KafkaProducer(
-            bootstrap_servers=bootstrap_servers,
-            value_serializer=self._serialize_json,
-            compression_type=None,
-            acks=1,
-            retries=3,
-            linger_ms=10,
-            batch_size=32768,
-        )
-
-    def _serialize_json(self, obj: Any) -> bytes:
-        """Serialize object to JSON bytes with datetime handling."""
-        return json.dumps(obj, default=self._json_default).encode("utf-8")
-
-    @staticmethod
-    def _json_default(obj: Any) -> Any:
-        """Handle datetime serialization for JSON."""
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        elif isinstance(obj, date):
-            return obj.isoformat()
-        raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+        if sink is not None:
+            self._sink: LogSink = sink
+        else:
+            if kafka_bootstrap_servers:
+                import os
+                os.environ.setdefault("KAFKA_BOOTSTRAP_SERVERS", kafka_bootstrap_servers)
+            self._sink = build_sink(
+                log_type=self.log_type,
+                log_class=self.log_class,
+                version=self.version,
+                topic=topic_name,
+                fields=fields or [],
+                transport=transport,
+            )
+        self.logger.info("logger %s using sink: %s", self.logger_name, self._sink.name())
 
     def publish(
         self,
         key: str,
         log_record: Dict[str, Any],
-        callback: Optional[Callable[[bool, Optional[Exception]], None]] = None,
+        callback: Optional[Callable[[bool, Optional[BaseException]], None]] = None,
     ) -> None:
-        """
-        Publish a log record to Kafka.
+        env = LogEnvelope(
+            log_type=self.log_type,
+            log_class=self.log_class,
+            version=self.version,
+            data=self._jsonable(log_record),
+            key=key or "",
+        )
+        self._sink.publish(env, callback)
 
-        Args:
-            key: Partition key (typically user_id or similar)
-            log_record: The log record dictionary to publish
-            callback: Optional callback function for async notification
-        """
-        try:
-            future = self.producer.send(
-                self.topic_name, key=key.encode("utf-8"), value=log_record
-            )
-
-            if callback:
-                future.add_callback(
-                    lambda metadata: self._on_send_success(metadata, callback)
-                ).add_errback(lambda exc: self._on_send_error(exc, callback))
+    @staticmethod
+    def _jsonable(d: Dict[str, Any]) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        for k, v in d.items():
+            if isinstance(v, (datetime, date)):
+                out[k] = v.isoformat()
             else:
-                future.add_callback(self._on_send_success).add_errback(
-                    self._on_send_error
-                )
-
-        except Exception as e:
-            self.logger.error(f"Error publishing {self.logger_name} log record: {e}")
-            if callback:
-                callback(False, e)
-
-    def _on_send_success(self, metadata, callback=None):
-        """Handle successful send."""
-        self.logger.debug(
-            f"Published {self.logger_name} log record to topic {self.topic_name} "
-            f"partition {metadata.partition} offset {metadata.offset}"
-        )
-        if callback:
-            callback(True, None)
-
-    def _on_send_error(self, exc, callback=None):
-        """Handle send error."""
-        self.logger.error(
-            f"Failed to publish {self.logger_name} log record to topic {self.topic_name}: {exc}"
-        )
-        if callback:
-            callback(False, exc)
+                out[k] = v
+        return out
 
     @staticmethod
     def now() -> datetime:
-        """Get current timestamp."""
         return datetime.utcnow()
 
-    def flush(self) -> None:
-        """Flush all pending messages."""
-        self.producer.flush()
+    def flush(self, timeout_s: float = 30.0) -> None:
+        self._sink.flush(timeout_s)
 
     def close(self) -> None:
-        """Flush pending messages and close the producer."""
         try:
-            self.producer.flush()
-            self.producer.close(timeout=5)
+            self._sink.close()
             self.logger.info(f"Closed {self.logger_name} logger")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.logger.error(f"Error closing {self.logger_name} logger: {e}")
 
     def __enter__(self):
-        """Context manager entry."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
         self.close()

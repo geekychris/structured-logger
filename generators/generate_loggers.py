@@ -113,19 +113,35 @@ def generate_java_logger(config: Dict[str, Any], output_dir: Path) -> None:
     if has_map:
         imports.extend(["java.util.Map", "java.util.HashMap"])
 
+    # Build a Java initializer block that constructs the FIELDS list (used by
+    # AvroKafkaSink / S3BatchSink to derive their schemas).
+    fields_init_lines = []
+    for f in fields:
+        m_entries = [
+            f'                Map.entry("name", "{f["name"]}")',
+            f'                Map.entry("type", "{f["type"]}")',
+            f'                Map.entry("required", {"true" if f.get("required", True) else "false"})',
+        ]
+        fields_init_lines.append(
+            "        FIELDS.add(Map.ofEntries(\n" + ",\n".join(m_entries) + "\n        ));"
+        )
+    fields_init_block = "\n".join(fields_init_lines)
+    # Make sure Map and ArrayList are in imports
+    extra_java_imports = ["java.util.List", "java.util.ArrayList", "java.util.Map"]
+
     java_code = f"""package com.logging.generated;
 
 import com.logging.BaseStructuredLogger;
 import com.fasterxml.jackson.annotation.JsonProperty;
-{chr(10).join(f'import {imp};' for imp in sorted(set(imports)))}
+{chr(10).join(f'import {imp};' for imp in sorted(set(imports + extra_java_imports)))}
 
 /**
  * Generated structured logger for {config.get('description', class_name)}.
- * 
+ *
  * Version: {config['version']}
  * Kafka Topic: {topic}
  * Warehouse Table: {config['warehouse']['table_name']}
- * 
+ *
  * DO NOT EDIT - This file is auto-generated from the log config.
  */
 public class {class_name}Logger extends BaseStructuredLogger {{
@@ -135,8 +151,15 @@ public class {class_name}Logger extends BaseStructuredLogger {{
     private static final String LOG_TYPE = "{log_type}";
     private static final String VERSION = "{version}";
 
+    /** Field metadata baked in from the log config — passed to BaseStructuredLogger
+     * so AvroKafkaSink / S3BatchSink can derive the right schema. */
+    private static final List<Map<String, Object>> FIELDS = new ArrayList<>();
+    static {{
+{fields_init_block}
+    }}
+
     public {class_name}Logger() {{
-        super(TOPIC_NAME, LOGGER_NAME, LOG_TYPE, VERSION);
+        super(TOPIC_NAME, LOGGER_NAME, LOG_TYPE, VERSION, FIELDS);
     }}
 
     public {class_name}Logger(String kafkaBootstrapServers) {{
@@ -233,10 +256,21 @@ def generate_python_logger(config: Dict[str, Any], output_dir: Path) -> None:
         return self'''
         builder_methods.append(method)
 
+    log_type = config.get("log_type", class_name.lower())
+    version = config.get("version", "1.0.0")
+    transport = config.get("transport")  # may be None for backward compat
+    # Bake the field list and transport into the generated module so the
+    # BaseStructuredLogger can derive Avro schemas / build sinks from config.
+    # Use pprint (Python literals: True/False/None) — NOT json.dumps which
+    # would emit lowercase true/false.
+    import pprint as _pp
+    fields_literal = _pp.pformat(fields, indent=4, width=120, sort_dicts=False)
+    transport_literal = "None" if transport is None else _pp.pformat(transport, indent=4, width=120, sort_dicts=False)
+
     python_code = f'''"""
 Generated structured logger for {config.get('description', class_name)}.
 
-Version: {config['version']}
+Version: {version}
 Kafka Topic: {topic}
 Warehouse Table: {config['warehouse']['table_name']}
 
@@ -247,15 +281,34 @@ DO NOT EDIT - This file is auto-generated from the log config.
 from structured_logging.base_logger import BaseStructuredLogger
 
 
+# Field definitions and transport config baked in at generation time.
+# Used by BaseStructuredLogger to derive Avro schemas (for the kafka-avro
+# and s3-avro/parquet sinks) and to build the sink chain.
+_FIELDS = {fields_literal}
+_TRANSPORT = {transport_literal}
+
+
 class {class_name}Logger(BaseStructuredLogger):
     """Structured logger for {class_name} events."""
 
-    def __init__(self, kafka_bootstrap_servers: Optional[str] = None):
-        """Initialize the {class_name} logger."""
+    def __init__(self, kafka_bootstrap_servers: Optional[str] = None,
+                 transport: Optional[Dict[str, Any]] = None,
+                 sink=None):
+        """Initialize the {class_name} logger.
+
+        transport overrides the config-baked default; sink overrides everything
+        (useful for tests). STRUCTURED_LOG_SINKS env var overrides transport.sinks.
+        """
         super().__init__(
             topic_name="{topic}",
             logger_name="{class_name}",
             kafka_bootstrap_servers=kafka_bootstrap_servers,
+            log_type="{log_type}",
+            log_class="{class_name}",
+            version="{version}",
+            fields=_FIELDS,
+            transport=transport if transport is not None else _TRANSPORT,
+            sink=sink,
         )
 
     def log(
@@ -363,8 +416,8 @@ def main():
     )
     parser.add_argument(
         "--java-output",
-        default="./java-logger/src/main/java/com/logging/generated",
-        help="Output directory for Java code",
+        default="./java-logger/core/src/main/java/com/logging/generated",
+        help="Output directory for Java code (maven core module)",
     )
     parser.add_argument(
         "--python-output",

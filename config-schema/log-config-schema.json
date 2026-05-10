@@ -120,6 +120,62 @@
           }
         }
       }
+    },
+    "transport": {
+      "type": "object",
+      "description": "Optional transport pipeline. If absent, defaults to a single Kafka sink with JSON encoding (the historical behaviour). Sinks compose left-to-right when more than one is given. Env vars override config: STRUCTURED_LOG_SINKS=KAFKA,FILE etc.",
+      "properties": {
+        "sinks": {
+          "type": "array",
+          "description": "Ordered list of sink types to publish to. Multiple sinks fan out via CompositeSink.",
+          "items": {
+            "type": "string",
+            "enum": ["kafka", "file", "s3", "slf4j", "null"]
+          },
+          "default": ["kafka"]
+        },
+        "encoding": {
+          "type": "string",
+          "description": "Wire encoding for transports that carry encoded bytes (Kafka, S3). Avro requires schema_registry_url for Kafka.",
+          "enum": ["json", "avro"],
+          "default": "json"
+        },
+        "schema_registry_url": {
+          "type": ["string", "null"],
+          "description": "Confluent Schema Registry URL. Required when encoding=avro on a Kafka sink.",
+          "default": null
+        },
+        "kafka": {
+          "type": "object",
+          "description": "Per-logger overrides for Kafka producer. Bootstrap servers come from KAFKA_BOOTSTRAP_SERVERS env var.",
+          "properties": {
+            "compression": {"type": "string", "enum": ["none", "snappy", "gzip", "lz4", "zstd"], "default": "snappy"}
+          }
+        },
+        "file": {
+          "type": "object",
+          "description": "FileSink config (NDJSON, intended to be tailed by sidecar).",
+          "properties": {
+            "dir": {"type": "string", "description": "Directory for NDJSON files; can also be set via STRUCTURED_LOG_FILE_DIR."},
+            "rotate_bytes": {"type": "integer", "default": 67108864}
+          }
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3BatchSink — batches envelopes in memory, flushes to object storage on rotation.",
+          "properties": {
+            "endpoint": {"type": ["string", "null"], "description": "S3 endpoint URL (null = AWS default). e.g. http://minio:9000."},
+            "bucket": {"type": "string", "description": "Target bucket."},
+            "region": {"type": "string", "default": "us-east-1"},
+            "path_style": {"type": "boolean", "default": false, "description": "Set true for MinIO."},
+            "encoding": {"type": "string", "enum": ["avro", "parquet"], "default": "parquet"},
+            "rotate_seconds": {"type": "integer", "default": 60, "description": "Flush interval."},
+            "rotate_bytes": {"type": "integer", "default": 67108864, "description": "Flush when raw bytes exceed this."},
+            "max_records": {"type": "integer", "default": 50000, "description": "Hard cap on in-memory batch (memory safety)."},
+            "key_prefix": {"type": "string", "default": "", "description": "Prefix for S3 object keys."}
+          }
+        }
+      }
     }
   }
 }

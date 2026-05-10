@@ -4,16 +4,18 @@ import com.logging.BaseStructuredLogger;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Generated structured logger for Logs user activity events such as login, logout, and API access.
- * 
+ *
  * Version: 1.0.0
  * Kafka Topic: user-events
  * Warehouse Table: analytics_logs.user_activity
- * 
+ *
  * DO NOT EDIT - This file is auto-generated from the log config.
  */
 public class UserActivityLogger extends BaseStructuredLogger {
@@ -23,8 +25,79 @@ public class UserActivityLogger extends BaseStructuredLogger {
     private static final String LOG_TYPE = "user_activity";
     private static final String VERSION = "1.0.0";
 
+    /** Field metadata baked in from the log config — passed to BaseStructuredLogger
+     * so AvroKafkaSink / S3BatchSink can derive the right schema. */
+    private static final List<Map<String, Object>> FIELDS = new ArrayList<>();
+    static {
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "user_id"),
+                Map.entry("type", "string"),
+                Map.entry("required", true)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "username"),
+                Map.entry("type", "string"),
+                Map.entry("required", false)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "event_type"),
+                Map.entry("type", "string"),
+                Map.entry("required", true)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "event_date"),
+                Map.entry("type", "date"),
+                Map.entry("required", true)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "timestamp"),
+                Map.entry("type", "timestamp"),
+                Map.entry("required", true)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "ip_address"),
+                Map.entry("type", "string"),
+                Map.entry("required", false)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "user_agent"),
+                Map.entry("type", "string"),
+                Map.entry("required", false)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "endpoint"),
+                Map.entry("type", "string"),
+                Map.entry("required", false)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "http_method"),
+                Map.entry("type", "string"),
+                Map.entry("required", false)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "status_code"),
+                Map.entry("type", "int"),
+                Map.entry("required", false)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "response_time_ms"),
+                Map.entry("type", "long"),
+                Map.entry("required", false)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "session_id"),
+                Map.entry("type", "string"),
+                Map.entry("required", false)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "metadata"),
+                Map.entry("type", "map<string,string>"),
+                Map.entry("required", false)
+        ));
+    }
+
     public UserActivityLogger() {
-        super(TOPIC_NAME, LOGGER_NAME, LOG_TYPE, VERSION);
+        super(TOPIC_NAME, LOGGER_NAME, LOG_TYPE, VERSION, FIELDS);
     }
 
     public UserActivityLogger(String kafkaBootstrapServers) {
@@ -36,7 +109,7 @@ public class UserActivityLogger extends BaseStructuredLogger {
      */
     public void log(String userId, String username, String eventType, LocalDate eventDate, Instant timestamp, String ipAddress, String userAgent, String endpoint, String httpMethod, Integer statusCode, Long responseTimeMs, String sessionId, Map<String, String> metadata) {
         LogRecord record = new LogRecord(userId, username, eventType, eventDate, timestamp, ipAddress, userAgent, endpoint, httpMethod, statusCode, responseTimeMs, sessionId, metadata);
-        publish(userId, record);
+        publish(String.valueOf(userId), record);
     }
 
     /**

@@ -11,7 +11,9 @@ import org.slf4j.event.Level;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Materialises {@link LogSink}s from a {@link LoggerConfig}. Constructors that
@@ -28,12 +30,22 @@ public final class SinkFactory {
     public static final class LoggerContext {
         public final String topic;       // Kafka topic
         public final String logType;     // becomes part of NATS subject + filename
+        public final String logClass;    // used to derive Avro record name
         public final String fileBase;    // base file name (no extension)
+        public final List<Map<String, Object>> fields;  // for Avro / Parquet schema derivation
 
+        /** Legacy constructor — Avro/S3 sinks won't work without fields/logClass. */
         public LoggerContext(String topic, String logType, String fileBase) {
+            this(topic, logType, logType, fileBase, Collections.emptyList());
+        }
+
+        public LoggerContext(String topic, String logType, String logClass,
+                             String fileBase, List<Map<String, Object>> fields) {
             this.topic = topic;
             this.logType = logType;
+            this.logClass = logClass;
             this.fileBase = fileBase;
+            this.fields = fields == null ? Collections.emptyList() : fields;
         }
     }
 
@@ -73,6 +85,15 @@ public final class SinkFactory {
                 return new FileSink(file, config.fileRotateBytes(), config.fileFsyncOnFlush());
             }
             case KAFKA: {
+                if ("avro".equalsIgnoreCase(config.kafkaEncoding())) {
+                    if (config.schemaRegistryUrl() == null) {
+                        throw new IllegalStateException(
+                                "kafka encoding=avro requires schemaRegistryUrl / SCHEMA_REGISTRY_URL");
+                    }
+                    return reflectivelyBuildAvroKafkaSink(
+                            ctx.topic, ctx.logClass, ctx.fields,
+                            config.schemaRegistryUrl(), config.kafkaBootstrapServers());
+                }
                 return new KafkaSink(ctx.topic, config.kafkaBootstrapServers());
             }
             case NATS: {
@@ -82,8 +103,88 @@ public final class SinkFactory {
                 }
                 return reflectivelyBuildNatsSink(url, config.natsSubjectPrefix());
             }
+            case S3: {
+                if (config.s3Bucket() == null) {
+                    throw new IllegalStateException(
+                            "S3 sink configured but s3Bucket / STRUCTURED_LOG_S3_BUCKET is unset");
+                }
+                if (ctx.fields.isEmpty()) {
+                    throw new IllegalStateException(
+                            "S3 sink requires field list in LoggerContext to derive an Avro/Parquet schema");
+                }
+                return reflectivelyBuildS3BatchSink(config, ctx);
+            }
             default:
                 throw new IllegalStateException("Unknown sink type: " + type);
+        }
+    }
+
+    /**
+     * AvroKafkaSink uses Apache Avro reflectively — Avro is an optional dep,
+     * so apps that only use JSON Kafka don't need it on the classpath.
+     */
+    @SuppressWarnings("unchecked")
+    private static LogSink reflectivelyBuildAvroKafkaSink(
+            String topic, String logClass, List<Map<String, Object>> fields,
+            String schemaRegistryUrl, String bootstrapServers) {
+        try {
+            Class<?> clazz = Class.forName("com.logging.sink.AvroKafkaSink");
+            return (LogSink) clazz.getConstructor(String.class, String.class, List.class, String.class, String.class)
+                    .newInstance(topic, logClass, fields, schemaRegistryUrl, bootstrapServers);
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException(
+                    "Avro Kafka sink requested but classpath is missing org.apache.avro:avro. " +
+                    "Add the Avro dependency to your application.", e);
+        } catch (NoSuchMethodException | IllegalAccessException | InstantiationException e) {
+            throw new IllegalStateException("Failed to construct AvroKafkaSink", e);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) throw (RuntimeException) cause;
+            throw new IllegalStateException("Failed to construct AvroKafkaSink", cause);
+        }
+    }
+
+    /**
+     * S3BatchSink is built reflectively — its dependencies (avro, parquet-avro,
+     * hadoop-common, aws-sdk:s3) are optional and only needed if the operator
+     * actually selects the S3 sink.
+     */
+    private static LogSink reflectivelyBuildS3BatchSink(LoggerConfig config, LoggerContext ctx) {
+        try {
+            Class<?> cfgClazz = Class.forName("com.logging.sink.S3BatchSink$Config");
+            Object cfg = cfgClazz.getConstructor().newInstance();
+            cfgClazz.getMethod("bucket", String.class).invoke(cfg, config.s3Bucket());
+            cfgClazz.getMethod("endpoint", String.class).invoke(cfg, config.s3Endpoint());
+            cfgClazz.getMethod("region", String.class).invoke(cfg, config.s3Region());
+            cfgClazz.getMethod("pathStyle", boolean.class).invoke(cfg, config.s3PathStyle());
+            cfgClazz.getMethod("rotateSeconds", int.class).invoke(cfg, config.s3RotateSeconds());
+            cfgClazz.getMethod("rotateBytes", long.class).invoke(cfg, config.s3RotateBytes());
+            cfgClazz.getMethod("maxRecords", int.class).invoke(cfg, config.s3MaxRecords());
+            cfgClazz.getMethod("keyPrefix", String.class).invoke(cfg, config.s3KeyPrefix());
+            // encoding enum
+            Class<?> encClazz = Class.forName("com.logging.sink.S3BatchSink$Encoding");
+            Object encVal = Enum.valueOf((Class<Enum>) encClazz, config.s3Encoding().toUpperCase());
+            cfgClazz.getMethod("encoding", encClazz).invoke(cfg, encVal);
+            cfgClazz.getMethod("avroSchemaFromConfig", String.class, List.class)
+                    .invoke(cfg, ctx.logClass, ctx.fields);
+            // credentials from env if set
+            String ak = System.getenv("AWS_ACCESS_KEY_ID");
+            String sk = System.getenv("AWS_SECRET_ACCESS_KEY");
+            if (ak != null && sk != null) {
+                cfgClazz.getMethod("credentials", String.class, String.class).invoke(cfg, ak, sk);
+            }
+
+            Class<?> sinkClazz = Class.forName("com.logging.sink.S3BatchSink");
+            return (LogSink) sinkClazz.getConstructor(cfgClazz).newInstance(cfg);
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException(
+                    "S3 sink requested but classpath is missing avro / parquet-avro / hadoop-common / aws-sdk:s3.", e);
+        } catch (NoSuchMethodException | IllegalAccessException | InstantiationException e) {
+            throw new IllegalStateException("Failed to construct S3BatchSink", e);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) throw (RuntimeException) cause;
+            throw new IllegalStateException("Failed to construct S3BatchSink", cause);
         }
     }
 

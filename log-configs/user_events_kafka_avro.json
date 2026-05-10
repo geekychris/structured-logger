@@ -1,0 +1,23 @@
+{
+  "name": "UserEventsKafkaAvro",
+  "log_type": "user_events",
+  "version": "1.0.0",
+  "description": "User events delivered via Kafka with Avro+Schema Registry — Approach B",
+  "kafka": {"topic": "user-events-avro"},
+  "warehouse": {"table_name": "analytics_logs.user_events_kafka_avro"},
+  "fields": [
+    {"name": "timestamp", "type": "string", "required": true},
+    {"name": "event_date", "type": "string", "required": true},
+    {"name": "user_id", "type": "string", "required": true},
+    {"name": "session_id", "type": "string", "required": true},
+    {"name": "event_type", "type": "string", "required": true},
+    {"name": "page_url", "type": "string", "required": false},
+    {"name": "device_type", "type": "string", "required": false},
+    {"name": "duration_ms", "type": "long", "required": false}
+  ],
+  "transport": {
+    "sinks": ["kafka"],
+    "encoding": "avro",
+    "schema_registry_url": "http://schema-registry:8081"
+  }
+}

@@ -4,14 +4,17 @@ import com.logging.BaseStructuredLogger;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Generated structured logger for API endpoint performance and usage metrics.
- * 
+ *
  * Version: 1.0.0
  * Kafka Topic: api-metrics
  * Warehouse Table: analytics_logs.api_metrics
- * 
+ *
  * DO NOT EDIT - This file is auto-generated from the log config.
  */
 public class ApiMetricsLogger extends BaseStructuredLogger {
@@ -21,8 +24,74 @@ public class ApiMetricsLogger extends BaseStructuredLogger {
     private static final String LOG_TYPE = "api_metrics";
     private static final String VERSION = "1.0.0";
 
+    /** Field metadata baked in from the log config — passed to BaseStructuredLogger
+     * so AvroKafkaSink / S3BatchSink can derive the right schema. */
+    private static final List<Map<String, Object>> FIELDS = new ArrayList<>();
+    static {
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "timestamp"),
+                Map.entry("type", "timestamp"),
+                Map.entry("required", true)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "metric_date"),
+                Map.entry("type", "date"),
+                Map.entry("required", true)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "service_name"),
+                Map.entry("type", "string"),
+                Map.entry("required", true)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "endpoint"),
+                Map.entry("type", "string"),
+                Map.entry("required", true)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "method"),
+                Map.entry("type", "string"),
+                Map.entry("required", true)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "status_code"),
+                Map.entry("type", "int"),
+                Map.entry("required", true)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "response_time_ms"),
+                Map.entry("type", "long"),
+                Map.entry("required", true)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "request_size_bytes"),
+                Map.entry("type", "long"),
+                Map.entry("required", false)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "response_size_bytes"),
+                Map.entry("type", "long"),
+                Map.entry("required", false)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "user_id"),
+                Map.entry("type", "string"),
+                Map.entry("required", false)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "client_ip"),
+                Map.entry("type", "string"),
+                Map.entry("required", false)
+        ));
+        FIELDS.add(Map.ofEntries(
+                Map.entry("name", "error_message"),
+                Map.entry("type", "string"),
+                Map.entry("required", false)
+        ));
+    }
+
     public ApiMetricsLogger() {
-        super(TOPIC_NAME, LOGGER_NAME, LOG_TYPE, VERSION);
+        super(TOPIC_NAME, LOGGER_NAME, LOG_TYPE, VERSION, FIELDS);
     }
 
     public ApiMetricsLogger(String kafkaBootstrapServers) {
@@ -34,7 +103,7 @@ public class ApiMetricsLogger extends BaseStructuredLogger {
      */
     public void log(Instant timestamp, LocalDate metricDate, String serviceName, String endpoint, String method, Integer statusCode, Long responseTimeMs, Long requestSizeBytes, Long responseSizeBytes, String userId, String clientIp, String errorMessage) {
         LogRecord record = new LogRecord(timestamp, metricDate, serviceName, endpoint, method, statusCode, responseTimeMs, requestSizeBytes, responseSizeBytes, userId, clientIp, errorMessage);
-        publish(userId, record);
+        publish(String.valueOf(userId), record);
     }
 
     /**

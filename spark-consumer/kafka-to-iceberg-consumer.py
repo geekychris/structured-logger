@@ -65,21 +65,34 @@ def create_iceberg_table_if_not_exists(spark, table_name, schema, partition_fiel
         print(f"Created table iceberg.analytics_logs.{table_name}")
 
 def process_topic(spark, config):
-    """Process a single Kafka topic and write to Iceberg"""
+    """Process a single Kafka topic and write to Iceberg.
+
+    Honors the optional `transport.encoding` field on the config:
+      - encoding="json" (default): parse Kafka value as JSON envelope.
+      - encoding="avro": decode Confluent-wire-format Avro using the schema
+        fetched from `transport.schema_registry_url`.
+
+    Configs whose transport.sinks does NOT include "kafka" are skipped — they
+    belong to the s3-to-iceberg consumer instead.
+
+    To enable Avro: add to the log-config JSON:
+        "transport": {"encoding": "avro", "schema_registry_url": "http://schema-registry:8081"}
+    """
+    transport = config.get("transport") or {}
+    sinks = [s.lower() for s in (transport.get("sinks") or ["kafka"])]
+    if "kafka" not in sinks:
+        return None  # not our problem; the s3-to-iceberg consumer handles it
     topic = config["kafka"]["topic"]
-    # Use warehouse.table_name if specified, otherwise fall back to lowercased name
     full_table_name = config.get("warehouse", {}).get("table_name", f"analytics_logs.{config['name'].lower()}")
-    # Extract just the table name (remove schema prefix if present)
     table_name = full_table_name.split(".")[-1] if "." in full_table_name else full_table_name
     schema = get_schema_for_config(config)
     partition_fields = config.get("iceberg", {}).get("partition_fields", [])
-    
-    print(f"\n=== Processing topic: {topic} -> table: {table_name} ===")
-    
-    # Create table if needed
+    transport = config.get("transport") or {}
+    encoding = (transport.get("encoding") or "json").lower()
+
+    print(f"\n=== Processing topic: {topic} -> table: {table_name} (encoding={encoding}) ===")
     create_iceberg_table_if_not_exists(spark, table_name, schema, partition_fields)
-    
-    # Read from Kafka
+
     df = spark \
         .readStream \
         .format("kafka") \
@@ -88,19 +101,42 @@ def process_topic(spark, config):
         .option("startingOffsets", "earliest") \
         .option("failOnDataLoss", "false") \
         .load()
-    
-    # Create envelope schema with metadata fields
+
     envelope_schema = StructType([
         StructField("_log_type", StringType(), False),
         StructField("_log_class", StringType(), False),
         StructField("_version", StringType(), False),
         StructField("data", schema, False)
     ])
-    
-    # Parse JSON with envelope, then extract data field
-    parsed_df = df.select(
-        from_json(col("value").cast("string"), envelope_schema).alias("envelope")
-    ).select("envelope.data.*")
+
+    if encoding == "avro":
+        # Confluent wire format = [0x00][4-byte schema id][avro binary].
+        # We strip the 5-byte header and use Spark's from_avro on the rest.
+        sr_url = transport.get("schema_registry_url") or os.getenv("SCHEMA_REGISTRY_URL")
+        if not sr_url:
+            raise ValueError(f"topic {topic}: encoding=avro but no schema_registry_url set")
+        try:
+            from pyspark.sql.avro.functions import from_avro
+            from pyspark.sql.functions import expr
+        except ImportError as e:
+            raise ImportError(
+                "Avro decoding requires the spark-avro package on the classpath. "
+                "Add --packages org.apache.spark:spark-avro_2.12:<version> to spark-submit."
+            ) from e
+        # Build the Avro schema JSON from the config fields. Match the
+        # producer-side derive_avro_schema() in the Python sinks module.
+        from urllib.request import urlopen
+        # Fetch latest schema from SR (it was registered by the producer)
+        with urlopen(f"{sr_url.rstrip('/')}/subjects/{topic}-value/versions/latest", timeout=10) as r:
+            avro_schema_str = json.loads(r.read())["schema"]
+        parsed_df = df \
+            .selectExpr("substring(value, 6, length(value)-5) as avro_bytes") \
+            .select(from_avro(col("avro_bytes"), avro_schema_str).alias("envelope")) \
+            .select("envelope.data.*")
+    else:
+        parsed_df = df.select(
+            from_json(col("value").cast("string"), envelope_schema).alias("envelope")
+        ).select("envelope.data.*")
     
     # Convert timestamp fields if needed
     for field in schema.fields:
@@ -155,6 +191,9 @@ def main():
             
             try:
                 query = process_topic(spark, config)
+                if query is None:
+                    print(f"Skipping {filename} (not a kafka transport)")
+                    continue
                 queries.append(query)
             except Exception as e:
                 print(f"Error processing {filename}: {e}")

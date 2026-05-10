@@ -13,15 +13,64 @@ from typing import Optional, Dict, List, Any
 from structured_logging.base_logger import BaseStructuredLogger
 
 
+# Field definitions and transport config baked in at generation time.
+# Used by BaseStructuredLogger to derive Avro schemas (for the kafka-avro
+# and s3-avro/parquet sinks) and to build the sink chain.
+_FIELDS = [   {'name': 'user_id', 'type': 'string', 'required': True, 'description': 'Unique identifier for the user'},
+    {'name': 'username', 'type': 'string', 'required': False, 'description': 'Username of the user'},
+    {   'name': 'event_type',
+        'type': 'string',
+        'required': True,
+        'description': 'Type of user activity event (LOGIN, LOGOUT, API_ACCESS, etc.)'},
+    {   'name': 'event_date',
+        'type': 'date',
+        'required': True,
+        'description': 'Date of the event (YYYY-MM-DD) for partitioning'},
+    {   'name': 'timestamp',
+        'type': 'timestamp',
+        'required': True,
+        'description': 'Precise timestamp of the event in ISO-8601 format'},
+    {'name': 'ip_address', 'type': 'string', 'required': False, 'description': 'IP address of the user'},
+    {'name': 'user_agent', 'type': 'string', 'required': False, 'description': 'Browser user agent string'},
+    {   'name': 'endpoint',
+        'type': 'string',
+        'required': False,
+        'description': 'API endpoint accessed (for API_ACCESS events)'},
+    {   'name': 'http_method',
+        'type': 'string',
+        'required': False,
+        'description': 'HTTP method used (GET, POST, PUT, DELETE, etc.)'},
+    {'name': 'status_code', 'type': 'int', 'required': False, 'description': 'HTTP status code returned'},
+    {'name': 'response_time_ms', 'type': 'long', 'required': False, 'description': 'Response time in milliseconds'},
+    {'name': 'session_id', 'type': 'string', 'required': False, 'description': 'Session identifier'},
+    {   'name': 'metadata',
+        'type': 'map<string,string>',
+        'required': False,
+        'description': 'Additional metadata as key-value pairs'}]
+_TRANSPORT = None
+
+
 class UserActivityLogger(BaseStructuredLogger):
     """Structured logger for UserActivity events."""
 
-    def __init__(self, kafka_bootstrap_servers: Optional[str] = None):
-        """Initialize the UserActivity logger."""
+    def __init__(self, kafka_bootstrap_servers: Optional[str] = None,
+                 transport: Optional[Dict[str, Any]] = None,
+                 sink=None):
+        """Initialize the UserActivity logger.
+
+        transport overrides the config-baked default; sink overrides everything
+        (useful for tests). STRUCTURED_LOG_SINKS env var overrides transport.sinks.
+        """
         super().__init__(
             topic_name="user-events",
             logger_name="UserActivity",
             kafka_bootstrap_servers=kafka_bootstrap_servers,
+            log_type="user_activity",
+            log_class="UserActivity",
+            version="1.0.0",
+            fields=_FIELDS,
+            transport=transport if transport is not None else _TRANSPORT,
+            sink=sink,
         )
 
     def log(

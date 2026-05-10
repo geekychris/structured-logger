@@ -1,0 +1,241 @@
+{
+  "title": "Five ways to ship logs to your warehouse",
+  "theme": "dark",
+  "default_duration": 7,
+  "narration": {
+    "voice": "Daniel",
+    "rate": 165,
+    "post_roll_s": 1.0,
+    "leading_silence_s": 0.4
+  },
+  "scenes": [
+    {
+      "kind": "title",
+      "duration": 4,
+      "title": "Five ways to ship logs",
+      "subtitle": "Kafka, Avro, Sidecars, Parquet, WarpStream — what each one costs",
+      "footer": "structured-logging — end-to-end walkthrough",
+      "narration": "Five ways to ship logs to your warehouse. [[slnc 500]] We'll look at Kafka, Avro, sidecars, Parquet, and WarpStream, [[slnc 300]] and what each one [[emph +]]actually costs."
+    },
+
+    {
+      "kind": "content",
+      "duration": 8,
+      "title": "The problem",
+      "body": "- Apps emit structured log events at high rate\n- Need them queryable in a warehouse — Iceberg / Trino in this stack\n- Every transport choice trades latency for cost\n- This project benchmarks five approaches, then makes them all production-configurable from one JSON config",
+      "narration": "The problem is simple to state. [[slnc 400]] Applications produce structured log events, often at thousands per second. [[slnc 400]] We need them queryable in a warehouse, in this case, [[emph +]]Iceberg, queried through [[emph +]]Trino. [[slnc 500]] Every choice you make about how to ship those events trades [[emph +]]latency for [[emph +]]cost. [[slnc 500]] This project benchmarks five approaches, [[slnc 200]] and makes them all configurable from one JSON file."
+    },
+
+    {
+      "kind": "table",
+      "duration": 12,
+      "title": "Headline numbers",
+      "subtitle": "Measured on identical workload (2000 rps, 180 s, ~390-byte JSON records)",
+      "headers": ["Approach", "p50 latency", "Wire bytes / 300k", "$/M rows"],
+      "rows": [
+        ["A — Kafka + JSON+Snappy",       "6.95 ms",   "120 MiB JSON",    "$0.112"],
+        ["B — Kafka + Avro+SR",            "7.09 ms",   "63 MiB Avro",     "$0.113"],
+        ["E — WarpStream (Kafka API)",     "397.92 ms", "128 MiB JSON",    "$0.078"],
+        ["C — Sidecar → S3 Avro",          "11.85 s",   "51 MiB",          "$0.0083"],
+        ["D — Sidecar → S3 Parquet+Zstd",  "13.83 s",   "35 MiB (best)",   "$0.0074 (best)"]
+      ],
+      "highlight_rows": [4],
+      "narration": "Here are the headline numbers. [[slnc 400]] Same workload across all five: two thousand records a second, for three minutes. [[slnc 600]] Kafka delivers single-digit millisecond latency, [[slnc 200]] but costs about [[emph +]]eleven cents per million rows. [[slnc 500]] WarpStream sits in the middle, around four hundred milliseconds, [[slnc 200]] for about seven cents. [[slnc 500]] But the [[emph +]]sidecar approaches, writing Parquet to S3, [[slnc 200]] are [[emph +]]fifteen times cheaper, [[slnc 200]] at the cost of about ten seconds of latency."
+    },
+
+    {
+      "kind": "content",
+      "duration": 10,
+      "title": "Three regimes, ~50× apart",
+      "body": "- Kafka regime — single-digit ms; broker hours dominate cost\n- WarpStream regime — ~400 ms; Kafka API + S3-backed; no broker fleet\n- Sidecar regime — tens of seconds; pay only for storage and PUTs\n\nCrossover where Kafka beats sidecar on cost: ~100M rows/hr (~28k rps).\nBelow that, sidecar wins on cost. Above that, Kafka wins on cost AND latency.",
+      "narration": "There are three regimes here, each about fifty times apart in latency. [[slnc 500]] Kafka is fast but you pay for brokers around the clock. [[slnc 400]] WarpStream gives you the Kafka API but stores data directly in S3, with no broker fleet. [[slnc 400]] And sidecars to S3 are dirt cheap, [[slnc 200]] but you wait tens of seconds. [[slnc 600]] The crossover where Kafka actually [[emph +]]beats sidecars on cost is around one hundred million rows per hour."
+    },
+
+    {
+      "kind": "title",
+      "duration": 3,
+      "title": "Approach A",
+      "subtitle": "Kafka + JSON+Snappy — the simplest thing that works",
+      "narration": "Approach A. [[slnc 300]] Kafka with JSON, Snappy compressed. [[slnc 200]] The simplest thing that works."
+    },
+
+    {
+      "kind": "content",
+      "duration": 11,
+      "title": "Approach A — config + flow",
+      "body": "App → Kafka topic (snappy-compressed JSON) → Spark micro-batch → Iceberg table.\n\nThis is the baseline. Every other approach swaps one part for cost or compression.",
+      "code": "{\n  \"name\": \"UserEvents\",\n  \"kafka\": {\"topic\": \"user-events\"},\n  \"warehouse\": {\"table_name\": \"analytics_logs.user_events\"},\n  \"transport\": {\n    \"sinks\": [\"kafka\"],\n    \"encoding\": \"json\",\n    \"kafka\": {\"compression\": \"snappy\"}\n  }\n}",
+      "annotations": [
+        {"type": "highlight_lines", "lines": [5, 6, 7, 8, 9], "color": "#60a5fa"}
+      ],
+      "narration": "The application publishes JSON to a Kafka topic, [[slnc 200]] Spark reads it in micro-batches, [[slnc 200]] and writes to an Iceberg table. [[slnc 500]] The whole transport, [[slnc 200]] highlighted in blue, [[slnc 200]] is just five lines of config. [[slnc 400]] This is our [[emph +]]baseline. Every other approach changes one part."
+    },
+
+    {
+      "kind": "title",
+      "duration": 3,
+      "title": "Approach B",
+      "subtitle": "Kafka + Avro + Schema Registry — half the wire bytes",
+      "narration": "Approach B. [[slnc 300]] Kafka with [[emph +]]Avro encoding, [[slnc 200]] using a Schema Registry. [[slnc 300]] About half the wire bytes."
+    },
+
+    {
+      "kind": "content",
+      "duration": 11,
+      "title": "Approach B — config + flow",
+      "body": "Same Kafka path; swap JSON for Confluent-wire Avro. Schema is auto-derived from your fields and registered with Schema Registry on producer startup.\n\nSpark consumer auto-detects encoding=avro and decodes via from_avro.",
+      "code": "{\n  \"transport\": {\n    \"sinks\": [\"kafka\"],\n    \"encoding\": \"avro\",\n    \"schema_registry_url\": \"http://schema-registry:8081\"\n  }\n}",
+      "annotations": [
+        {"type": "highlight_lines", "lines": [4, 5], "color": "#a78bfa"}
+      ],
+      "narration": "Same Kafka transport as before. [[slnc 300]] We just change the encoding from JSON to Avro, [[slnc 200]] and add a Schema Registry URL. [[slnc 500]] The Avro schema is auto-derived from your fields, [[slnc 200]] and registered when the producer starts. [[slnc 500]] You get [[emph +]]half the wire bytes, [[slnc 200]] for essentially zero CPU cost."
+    },
+
+    {
+      "kind": "title",
+      "duration": 3,
+      "title": "Approach C",
+      "subtitle": "Sidecar → S3 — Avro objects, zero broker bill",
+      "narration": "Approach C. [[slnc 300]] A sidecar that ships records as Avro objects to S3. [[slnc 300]] [[emph +]]Zero broker bill."
+    },
+
+    {
+      "kind": "content",
+      "duration": 12,
+      "title": "Approach C — config + flow",
+      "body": "App writes JSON to a local file (or in-process batch). Sidecar tails it, encodes Avro+Snappy, PUTs to S3.\n\nA second Spark consumer (s3-to-iceberg-consumer.py) watches the bucket and writes to Iceberg.\n\nOperational tradeoff: 30s latency, but no broker fleet to operate.",
+      "code": "{\n  \"transport\": {\n    \"sinks\": [\"s3\"],\n    \"s3\": {\n      \"bucket\": \"lakehouse\",\n      \"endpoint\": \"http://minio:9000\",\n      \"path_style\": true,\n      \"encoding\": \"avro\",\n      \"rotate_seconds\": 30,\n      \"max_records\": 50000\n    }\n  }\n}",
+      "annotations": [
+        {"type": "highlight_lines", "lines": [9, 10, 11], "color": "#4ade80"}
+      ],
+      "narration": "The application writes JSON locally, [[slnc 200]] either to a file [[slnc 200]] or to an in-process batch. [[slnc 400]] The sidecar collects fifty thousand records, [[slnc 200]] or thirty seconds, [[slnc 200]] whichever comes first. [[slnc 300]] Then it encodes them as Avro plus Snappy [[slnc 200]] and PUTs the whole batch as one S3 object. [[slnc 600]] A separate Spark consumer watches the bucket [[slnc 200]] and lands the data in [[emph +]]the same Iceberg table. [[slnc 400]] The trade-off: about thirty seconds of latency, [[slnc 200]] but [[emph +]]no broker fleet to run."
+    },
+
+    {
+      "kind": "title",
+      "duration": 3,
+      "title": "Approach D",
+      "subtitle": "Sidecar → S3 — Parquet+Zstd, the cheapest option",
+      "narration": "Approach D. [[slnc 300]] Same sidecar shape, [[slnc 200]] but writing Parquet with Zstandard compression. [[slnc 300]] The [[emph +]]cheapest option overall."
+    },
+
+    {
+      "kind": "content",
+      "duration": 11,
+      "title": "Approach D — config + flow",
+      "body": "Same shape as C. Just change one field: encoding from avro to parquet.\n\nResult: Parquet+Zstd at 26% of raw JSON size, ~30% smaller than Avro+Snappy at-rest.\n\nWhy? Columnar layout + dictionary encoding + zstd. The story is in the per-column breakdown next.",
+      "code": "{\n  \"transport\": {\n    \"sinks\": [\"s3\"],\n    \"s3\": {\n      \"bucket\": \"lakehouse\",\n      \"encoding\": \"parquet\",\n      \"rotate_seconds\": 60,\n      \"max_records\": 50000\n    }\n  }\n}",
+      "annotations": [
+        {"type": "highlight_lines", "lines": [6], "color": "#4ade80"}
+      ],
+      "narration": "Exactly the same as approach C. [[slnc 300]] We just change one field: [[slnc 200]] encoding from Avro [[emph +]]to Parquet. [[slnc 600]] The result: [[slnc 200]] objects shrink to twenty-six percent of the raw JSON size, [[slnc 200]] about thirty percent smaller than Avro plus Snappy. [[slnc 600]] Why? [[slnc 400]] Columnar layout, [[slnc 200]] plus dictionary encoding, [[slnc 200]] plus Zstandard. [[slnc 400]] The interesting story is in the per-column breakdown."
+    },
+
+    {
+      "kind": "table",
+      "duration": 14,
+      "title": "Why Parquet+Zstd wins — per-column breakdown",
+      "subtitle": "50,000 records; Parquet+Zstd vs raw JSON, by column",
+      "headers": ["Column", "Cardinality", "Raw JSON B/rec", "Parquet B/rec", "Reduction"],
+      "rows": [
+        ["event_date",       "1",      "10.0",   "0.01",  "1000×"],
+        ["device_type",      "3",      "6.3",    "0.21",  "30×"],
+        ["event_type",       "7",      "5.9",    "0.38",  "15×"],
+        ["user_id",          "5,912",  "13.0",   "1.94",  "7×"],
+        ["timestamp",        "50,000", "27.0",   "4.31",  "6×"],
+        ["properties_json",  "50,000", "106.0",  "74.06", "1.4× (dominates)"]
+      ],
+      "highlight_rows": [5],
+      "narration": "Look closely. [[slnc 500]] A column with only one unique value, [[slnc 200]] like the date field, [[slnc 200]] compresses by a factor of [[emph +]]a thousand. [[slnc 500]] Low-cardinality categoricals like device type, [[slnc 200]] with three values, [[slnc 200]] shrink thirty times. [[slnc 500]] But the row at the bottom, [[slnc 200]] free-text properties, [[slnc 200]] only compresses by [[emph +]]one point four times. [[slnc 500]] That single column ends up [[emph +]]dominating your at-rest cost."
+    },
+
+    {
+      "kind": "content",
+      "duration": 10,
+      "title": "Schema design tip from this analysis",
+      "body": "- Categorical / enum / single-value columns are essentially FREE in Parquet+Zstd\n- Sortable strings (timestamps) compress well\n- Free-text dominates the at-rest cost\n\nIf you can split a high-cardinality text field into (low-card category) + (medium-card template) + (high-card unique part), you can drop at-rest size 3–5×.",
+      "narration": "Here's the design tip. [[slnc 400]] Categoricals and enums are [[emph +]]free in Parquet plus Zstandard. [[slnc 400]] Sortable strings, like timestamps, also compress well. [[slnc 400]] But free text dominates. [[slnc 600]] If you can split a big text field into a low-cardinality category, [[slnc 200]] plus a medium-cardinality template, [[slnc 200]] plus a small unique part, [[slnc 300]] you can shrink at-rest size by [[emph +]]three to five times."
+    },
+
+    {
+      "kind": "title",
+      "duration": 3,
+      "title": "Approach E",
+      "subtitle": "WarpStream — Kafka API, S3-backed, zero brokers",
+      "narration": "Approach E. [[slnc 300]] WarpStream. [[slnc 200]] The Kafka API, [[slnc 200]] backed by S3, [[slnc 200]] with [[emph +]]zero brokers."
+    },
+
+    {
+      "kind": "content",
+      "duration": 11,
+      "title": "Approach E — zero code change",
+      "body": "WarpStream agent speaks the Kafka protocol but stores data in S3 — no broker disks, no replication, no always-on broker fleet.\n\nProducer/consumer code is unchanged. Just point your bootstrap at the agent.\n\nMeasured p50 latency: 397 ms — between Kafka (~7 ms) and Sidecar (~12 s).",
+      "code": "# .env or compose:\nKAFKA_BOOTSTRAP_SERVERS=warpstream-agent.local:9092\n\n# config: any approach A or B config works as-is\n{\n  \"transport\": {\n    \"sinks\": [\"kafka\"],\n    \"encoding\": \"avro\"\n  }\n}",
+      "annotations": [
+        {"type": "highlight_lines", "lines": [2], "color": "#fbbf24"}
+      ],
+      "narration": "WarpStream's agent speaks the Kafka protocol, [[slnc 200]] but stores data directly in S3. [[slnc 400]] No broker disks. [[slnc 200]] No replication overhead. [[slnc 200]] No always-on broker fleet. [[slnc 600]] Producers and consumers don't change [[emph +]]a single line. You just point your bootstrap at the agent. [[slnc 500]] Measured latency: about four hundred milliseconds. [[slnc 200]] Between Kafka and the sidecar approaches."
+    },
+
+    {
+      "kind": "title",
+      "duration": 3,
+      "title": "End-to-end verification",
+      "subtitle": "All four approaches landed in Iceberg — queried from Trino",
+      "narration": "Now let's verify it all works. [[slnc 400]] All four approaches landing data in Iceberg, [[slnc 200]] queried from Trino."
+    },
+
+    {
+      "kind": "image",
+      "duration": 9,
+      "title": "Trino sees rows from every transport",
+      "image": "/Users/chris/code/warp_experiments/done/structured-logging/demo/screenshots/trino_results.png",
+      "caption": "Iceberg tables in analytics_logs — same query surface regardless of transport",
+      "annotations": [
+        {"type": "callout", "xy": [80, 950], "text": "Same Trino query works against all four", "color": "#4ade80"}
+      ],
+      "narration": "Here's the actual output. [[slnc 400]] We pushed test records through every approach, [[slnc 200]] then ran a single Trino query against four different Iceberg tables. [[slnc 500]] Trino sees the data, [[slnc 200]] no matter which transport delivered it."
+    },
+
+    {
+      "kind": "title",
+      "duration": 3,
+      "title": "How to reproduce",
+      "narration": "How do you reproduce this on your own machine?"
+    },
+
+    {
+      "kind": "content",
+      "duration": 12,
+      "title": "Bring it up locally",
+      "body": "Three commands. The override file remaps host ports to a coordinated 18000–18099 range so it doesn't collide with other stacks.",
+      "code": "# 1. Clone the lakehouse stack alongside this project\ngit clone https://github.com/geekychris/spark_minio_trino.git ../spark_minio_trino\n\n# 2. Bring up everything (devportal-coordinated ports)\ndocker compose -f ../spark_minio_trino/docker-compose.yml \\\n               -f lakehouse-override.yml \\\n               up -d\n\n# 3. Start consumers + drive test data\n./start-consumer.sh both\npython3 test_e2e.py",
+      "narration": "Three commands. [[slnc 500]] Clone the lakehouse stack next to this project. [[slnc 400]] Bring it up using the included override file, [[slnc 200]] which remaps host ports to a non-conflicting range. [[slnc 400]] Start both Spark consumers, [[slnc 200]] then run the test driver. [[slnc 400]] That's it."
+    },
+
+    {
+      "kind": "table",
+      "duration": 14,
+      "title": "Decision matrix",
+      "subtitle": "Pick by your latency budget and throughput",
+      "headers": ["You need...", "Use", "Why"],
+      "rows": [
+        ["sub-second freshness", "A or B (Kafka)",                     "tens of ms p99"],
+        ["minute-fresh, low cost", "C or D (Sidecar→S3)",               "10–15× cheaper at <100M/hr"],
+        ["Kafka semantics, no brokers", "E (WarpStream)",                "API-compatible, ~400 ms"],
+        ["smallest at-rest size", "D (Parquet+Zstd)",                  "26% of raw JSON"],
+        [">100M rows/hr", "A or B (Kafka)",                            "broker cost amortizes"]
+      ],
+      "narration": "Here's how to choose. [[slnc 500]] Need sub-second freshness? [[slnc 200]] Use Kafka. [[slnc 400]] Minute-fresh and want it cheap? [[slnc 200]] Use a sidecar to S3. [[slnc 400]] Want Kafka semantics without operating brokers? [[slnc 200]] Try WarpStream. [[slnc 400]] Smallest possible at-rest size? [[slnc 200]] Parquet plus Zstandard. [[slnc 400]] And if you're pushing more than a hundred million rows an hour, [[slnc 200]] Kafka actually [[emph +]]wins on cost too."
+    },
+
+    {
+      "kind": "title",
+      "duration": 6,
+      "title": "Five approaches. One config field.",
+      "subtitle": "transport.sinks  +  transport.encoding",
+      "footer": "bench/REPORT.md   ·   spark-consumer/   ·   python-logger/structured_logging/sinks/",
+      "narration": "Five approaches. [[slnc 400]] One config field. [[slnc 600]] The full report, with mermaid diagrams and per-column compression analysis, [[slnc 200]] is in bench [[emph +]]REPORT dot markdown. [[slnc 500]] Thanks for watching."
+    }
+  ]
+}

@@ -30,6 +30,10 @@
         <slf4j.version>2.0.9</slf4j.version>
         <nats.version>2.17.2</nats.version>
         <flink.version>1.18.1</flink.version>
+        <avro.version>1.11.3</avro.version>
+        <parquet.version>1.13.1</parquet.version>
+        <hadoop.version>3.3.6</hadoop.version>
+        <aws-sdk.version>2.25.0</aws-sdk.version>
         <junit.version>5.10.0</junit.version>
         <assertj.version>3.24.2</assertj.version>
     </properties>
@@ -81,6 +85,30 @@
                 <groupId>io.nats</groupId>
                 <artifactId>jnats</artifactId>
                 <version>${nats.version}</version>
+            </dependency>
+
+            <!-- Avro + Parquet (optional: only loaded by AvroKafkaSink / S3BatchSink) -->
+            <dependency>
+                <groupId>org.apache.avro</groupId>
+                <artifactId>avro</artifactId>
+                <version>${avro.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.parquet</groupId>
+                <artifactId>parquet-avro</artifactId>
+                <version>${parquet.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.hadoop</groupId>
+                <artifactId>hadoop-common</artifactId>
+                <version>${hadoop.version}</version>
+            </dependency>
+
+            <!-- AWS SDK v2 — S3BatchSink -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>s3</artifactId>
+                <version>${aws-sdk.version}</version>
             </dependency>
 
             <!-- Flink -->

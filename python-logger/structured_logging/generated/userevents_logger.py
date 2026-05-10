@@ -13,15 +13,51 @@ from typing import Optional, Dict, List, Any
 from structured_logging.base_logger import BaseStructuredLogger
 
 
+# Field definitions and transport config baked in at generation time.
+# Used by BaseStructuredLogger to derive Avro schemas (for the kafka-avro
+# and s3-avro/parquet sinks) and to build the sink chain.
+_FIELDS = [   {'name': 'timestamp', 'type': 'timestamp', 'required': True, 'description': 'Event timestamp'},
+    {'name': 'event_date', 'type': 'date', 'required': True, 'description': 'Event date for partitioning'},
+    {'name': 'user_id', 'type': 'string', 'required': True, 'description': 'Unique user identifier'},
+    {'name': 'session_id', 'type': 'string', 'required': True, 'description': 'Session identifier'},
+    {   'name': 'event_type',
+        'type': 'string',
+        'required': True,
+        'description': 'Type of event (click, view, purchase, etc.)'},
+    {'name': 'page_url', 'type': 'string', 'required': False, 'description': 'URL of the page where event occurred'},
+    {   'name': 'properties',
+        'type': 'map<string,string>',
+        'required': False,
+        'description': 'Additional event properties'},
+    {   'name': 'device_type',
+        'type': 'string',
+        'required': False,
+        'description': 'Device type (mobile, desktop, tablet)'},
+    {'name': 'duration_ms', 'type': 'long', 'required': False, 'description': 'Duration of the event in milliseconds'}]
+_TRANSPORT = None
+
+
 class UserEventsLogger(BaseStructuredLogger):
     """Structured logger for UserEvents events."""
 
-    def __init__(self, kafka_bootstrap_servers: Optional[str] = None):
-        """Initialize the UserEvents logger."""
+    def __init__(self, kafka_bootstrap_servers: Optional[str] = None,
+                 transport: Optional[Dict[str, Any]] = None,
+                 sink=None):
+        """Initialize the UserEvents logger.
+
+        transport overrides the config-baked default; sink overrides everything
+        (useful for tests). STRUCTURED_LOG_SINKS env var overrides transport.sinks.
+        """
         super().__init__(
             topic_name="user-events",
             logger_name="UserEvents",
             kafka_bootstrap_servers=kafka_bootstrap_servers,
+            log_type="user_events",
+            log_class="UserEvents",
+            version="1.0.0",
+            fields=_FIELDS,
+            transport=transport if transport is not None else _TRANSPORT,
+            sink=sink,
         )
 
     def log(
