@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Structured Logging — Five ways to ship logs to your warehouse</title>
+  <meta name="description" content="Benchmark, deep-dive, and live walkthrough of five ways to deliver structured logs to a Trino-queryable warehouse: Kafka+JSON, Kafka+Avro+SR, Sidecar→S3 Avro, Sidecar→S3 Parquet+Zstd, and WarpStream." />
+  <style>
+    :root {
+      --bg: #0f1115;
+      --bg2: #181a20;
+      --fg: #ebecee;
+      --muted: #a0a5af;
+      --accent: #60a5fa;
+      --accent2: #a78bfa;
+      --good: #4ade80;
+      --warn: #fbbf24;
+      --code-bg: #0c0e12;
+      --border: #2a2e38;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+    }
+    .accent-bar {
+      height: 6px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px 96px; }
+    header {
+      padding: 56px 0 32px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+    h1 {
+      font-size: 44px; line-height: 1.15; margin: 0 0 12px 0; font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    h1 .accent { color: var(--accent); }
+    h2 {
+      font-size: 28px; margin: 56px 0 16px 0; font-weight: 600;
+      letter-spacing: -0.01em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+    h3 { font-size: 20px; margin: 32px 0 8px 0; font-weight: 600; color: var(--fg); }
+    p, li { font-size: 17px; color: var(--fg); }
+    p.muted, .muted { color: var(--muted); }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .video-wrap {
+      background: black;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 24px 0;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    video { display: block; width: 100%; height: auto; background: black; }
+
+    .pills {
+      display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0 8px 0;
+    }
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 18px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 15px;
+      color: var(--fg);
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .pill:hover { border-color: var(--accent); transform: translateY(-1px); text-decoration: none; }
+    .pill.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+
+    table {
+      width: 100%; border-collapse: collapse; margin: 16px 0 24px 0;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 12px 16px; text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 15px;
+    }
+    th { background: var(--code-bg); color: var(--muted); font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; }
+    tr:last-child td { border-bottom: none; }
+    td.num { font-variant-numeric: tabular-nums; text-align: right; color: var(--accent); }
+    tr.winner td { background: rgba(96, 165, 250, 0.08); }
+    tr.winner td.num { color: var(--good); font-weight: 600; }
+
+    code, pre {
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      font-size: 14px;
+    }
+    code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; color: var(--accent); }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+      overflow-x: auto;
+      line-height: 1.5;
+    }
+    pre code { background: none; padding: 0; color: var(--fg); }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 24px 0; }
+    @media (max-width: 720px) {
+      .grid-2 { grid-template-columns: 1fr; }
+      h1 { font-size: 32px; }
+    }
+
+    footer {
+      margin-top: 80px;
+      padding-top: 32px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="accent-bar"></div>
+  <div class="container">
+    <header>
+      <h1>Five ways to <span class="accent">ship logs</span> to your warehouse</h1>
+      <p class="muted" style="font-size: 19px; margin: 0;">
+        Kafka, Avro, Sidecars, Parquet, WarpStream &mdash; what each one
+        <em>actually</em> costs.
+      </p>
+
+      <div class="pills">
+        <a class="pill primary" href="#video">▶ Watch the walkthrough (3:31)</a>
+        <a class="pill" href="https://github.com/geekychris/structured-logger/blob/main/bench/REPORT.md">📊 Full benchmark report</a>
+        <a class="pill" href="https://github.com/geekychris/structured-logger">💻 Source on GitHub</a>
+      </div>
+    </header>
+
+    <h2 id="video">Walkthrough video</h2>
+    <p>
+      Narrated tour of all five approaches &mdash; architecture, config snippet, end-to-end Trino verification.
+      Best viewed full-screen.
+    </p>
+    <div class="video-wrap">
+      <video controls preload="metadata" poster="">
+        <source src="structured-logging-walkthrough.mp4" type="video/mp4" />
+        Your browser does not support HTML5 video.
+        <a href="structured-logging-walkthrough.mp4">Download the MP4</a>.
+      </video>
+    </div>
+
+    <h2>Headline numbers</h2>
+    <p class="muted">Measured on identical workload: 2000 records/sec, 180 s, ~390-byte JSON records.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Approach</th>
+          <th>p50 latency</th>
+          <th>Wire bytes / 300k</th>
+          <th>$ / M rows</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>A &mdash; Kafka + JSON+Snappy</td>      <td class="num">6.95 ms</td>   <td>120 MiB JSON</td>  <td class="num">$0.112</td></tr>
+        <tr><td>B &mdash; Kafka + Avro + SR</td>         <td class="num">7.09 ms</td>   <td>63 MiB Avro</td>   <td class="num">$0.113</td></tr>
+        <tr><td>E &mdash; WarpStream (Kafka API)</td>    <td class="num">397.92 ms</td> <td>128 MiB JSON</td>  <td class="num">$0.078</td></tr>
+        <tr><td>C &mdash; Sidecar → S3 Avro</td>         <td class="num">11.85 s</td>   <td>51 MiB</td>        <td class="num">$0.0083</td></tr>
+        <tr class="winner"><td>D &mdash; Sidecar → S3 Parquet+Zstd</td> <td class="num">13.83 s</td> <td>35 MiB</td> <td class="num">$0.0074</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Three regimes ~50× apart in latency. Sidecar approaches are <strong>15× cheaper</strong> at this throughput
+      &mdash; but Kafka's broker cost amortises and beats sidecars above ~100M rows/hr.
+    </p>
+
+    <h2>What's in the project</h2>
+    <div class="grid-2">
+      <div>
+        <h3>📊 Benchmark</h3>
+        <p>
+          Self-contained docker-compose harness in
+          <a href="https://github.com/geekychris/structured-logger/tree/main/bench">bench/</a>
+          comparing all 5 approaches on latency, CPU, network, storage, and per-million-row cost
+          extrapolated to AWS list prices. Includes a per-column Parquet compression
+          deep-dive showing why categorical columns compress 1000× while
+          free-text dominates the at-rest cost.
+        </p>
+        <p>
+          <a href="https://github.com/geekychris/structured-logger/blob/main/bench/REPORT.md">→ Read the full report</a>
+        </p>
+      </div>
+      <div>
+        <h3>🔌 Production sinks</h3>
+        <p>
+          All five transports wired into the production loggers (Java + Python),
+          driven by one config field. Switch between Kafka+JSON, Kafka+Avro+SR,
+          Sidecar→S3+Avro, Sidecar→S3+Parquet+Zstd, or WarpStream by editing
+          <code>transport.sinks</code> in your <code>log-configs/*.json</code>.
+        </p>
+        <p>
+          <a href="https://github.com/geekychris/structured-logger#approach-availability">→ Approach availability matrix</a>
+        </p>
+      </div>
+      <div>
+        <h3>🌊 End-to-end</h3>
+        <p>
+          Two Spark consumers (<code>kafka-to-iceberg</code> +
+          <code>s3-to-iceberg</code>) land all five paths into the same Iceberg
+          tables. Trino queries them identically &mdash; the transport choice is
+          completely hidden from downstream analytics.
+        </p>
+      </div>
+      <div>
+        <h3>📋 Reproducible</h3>
+        <p>
+          Three commands bring up a coordinated lakehouse stack
+          (Kafka, MinIO, Hive Metastore, Spark, Trino, Schema Registry) on a
+          devportal-allocated port range that won't collide with other dev
+          stacks running on the same machine.
+        </p>
+      </div>
+    </div>
+
+    <h2>Try it locally</h2>
+    <pre><code># 1. Clone the lakehouse stack alongside this project
+git clone https://github.com/geekychris/spark_minio_trino.git ../spark_minio_trino
+
+# 2. Bring it all up (devportal-coordinated ports 18000–18099)
+docker compose -f ../spark_minio_trino/docker-compose.yml \
+               -f lakehouse-override.yml up -d
+
+# 3. Start the consumers and drive sample data through every approach
+./start-consumer.sh both
+python3 test_e2e.py
+
+# 4. Query the results from Trino — same query for every transport
+docker exec trino trino --server localhost:8080 --execute "
+  SELECT 'A: kafka+json'         AS approach, COUNT(*) FROM iceberg.analytics_logs.user_events
+  UNION ALL SELECT 'B: kafka+avro+SR',         COUNT(*) FROM iceberg.analytics_logs.user_events_kafka_avro
+  UNION ALL SELECT 'C: sidecar→s3 avro',       COUNT(*) FROM iceberg.analytics_logs.user_events_s3_avro
+  UNION ALL SELECT 'D: sidecar→s3 parquet',    COUNT(*) FROM iceberg.analytics_logs.user_events_s3_parquet
+"</code></pre>
+
+    <footer>
+      <p>
+        Source &amp; full docs:
+        <a href="https://github.com/geekychris/structured-logger">github.com/geekychris/structured-logger</a>
+        ·
+        Bench report:
+        <a href="https://github.com/geekychris/structured-logger/blob/main/bench/REPORT.md">REPORT.md</a>
+        ·
+        Walkthrough generated by the
+        <a href="https://github.com/geekychris/structured-logger/tree/main/demo">demo-video skill</a>
+        with macOS <code>say</code> narration.
+      </p>
+    </footer>
+  </div>
+</body>
+</html>
