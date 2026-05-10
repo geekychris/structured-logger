@@ -1,0 +1,56 @@
+# Flink TaskManager — this is where Table API operators actually run, so this
+# is the JVM you'll usually want to debug.
+#
+# Attach a debugger:
+#   kubectl -n flink-tutorial port-forward deploy/flink-taskmanager 5006:5005
+# then connect IDE Remote JVM Debug → localhost:5006.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flink-taskmanager
+  namespace: flink-tutorial
+  labels: {app: flink, component: taskmanager}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: flink, component: taskmanager}}
+  template:
+    metadata:
+      labels: {app: flink, component: taskmanager}
+    spec:
+      containers:
+        - name: taskmanager
+          image: flink:1.18.1-scala_2.12-java11
+          args: ["taskmanager"]
+          env:
+            - {name: JOB_MANAGER_RPC_ADDRESS, value: flink-jobmanager}
+            - name: FLINK_ENV_JAVA_OPTS_TM
+              value: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+          ports:
+            - {containerPort: 6121, name: data}
+            - {containerPort: 6122, name: rpc}
+            - {containerPort: 5005, name: jdwp}
+          livenessProbe:
+            tcpSocket: {port: 6122}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          volumeMounts:
+            - {name: flink-config, mountPath: /opt/flink/conf}
+      volumes:
+        - name: flink-config
+          configMap:
+            name: flink-config
+            items:
+              - {key: flink-conf.yaml, path: flink-conf.yaml}
+              - {key: log4j-console.properties, path: log4j-console.properties}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flink-taskmanager
+  namespace: flink-tutorial
+spec:
+  selector: {app: flink, component: taskmanager}
+  ports:
+    - {name: data, port: 6121, targetPort: 6121}
+    - {name: rpc,  port: 6122, targetPort: 6122}
+    - {name: jdwp, port: 5005, targetPort: 5005}

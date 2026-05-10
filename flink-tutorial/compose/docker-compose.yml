@@ -1,0 +1,79 @@
+# Flink session cluster (1 JobManager + 1 TaskManager) wired to the same
+# `lakehouse-network` as spark_minio_trino so jobs can reach the existing
+# Kafka, MinIO, and Hive Metastore.
+#
+# Bring up:
+#   docker compose -f flink-tutorial/compose/docker-compose.yml up -d
+#
+# Web UI: http://127.0.0.1:18030
+# Submit job: http://127.0.0.1:18030/#/submit
+#                 OR  ./flink-tutorial/scripts/submit.sh path/to/uber.jar
+#
+# Debugger ports (JDWP):
+#   localhost:18040  →  JobManager
+#   localhost:18041  →  TaskManager  (this is where Table API job code runs)
+#
+# Both expose suspend=n by default. Set FLINK_DEBUG_SUSPEND=y in env to make
+# the JVM block until your debugger attaches (useful for stepping through
+# Job submission setup).
+
+x-flink-common: &flink-common
+  image: flink:1.18.1-scala_2.12-java11
+  networks: [lakehouse-network]
+  environment: &flink-env
+    FLINK_PROPERTIES: |
+      jobmanager.rpc.address: jobmanager
+      jobmanager.bind-host: 0.0.0.0
+      taskmanager.bind-host: 0.0.0.0
+      taskmanager.host: taskmanager
+      taskmanager.numberOfTaskSlots: 4
+      parallelism.default: 2
+      rest.bind-address: 0.0.0.0
+      rest.address: 0.0.0.0
+      # Allow the Web UI to submit jars
+      web.submit.enable: true
+      web.cancel.enable: true
+      classloader.check-leaked-classloader: false
+      # Surface task-side stderr/stdout in the UI
+      taskmanager.log.path: /opt/flink/log/taskmanager.log
+
+services:
+  jobmanager:
+    <<: *flink-common
+    container_name: flink-jobmanager
+    hostname: jobmanager
+    ports:
+      - "18030:8081"   # Flink Web UI / REST API
+      - "18040:5005"   # JDWP for the JobManager JVM
+    environment:
+      <<: *flink-env
+      JOB_MANAGER_RPC_ADDRESS: jobmanager
+      # JDWP — server=y lets a debugger attach; suspend default n (set y in
+      # FLINK_DEBUG_SUSPEND env to make the JVM wait for attach before running).
+      FLINK_ENV_JAVA_OPTS_JM: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=${FLINK_DEBUG_SUSPEND:-n},address=*:5005"
+    command: jobmanager
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/overview > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  taskmanager:
+    <<: *flink-common
+    container_name: flink-taskmanager
+    hostname: taskmanager
+    depends_on:
+      jobmanager:
+        condition: service_healthy
+    ports:
+      - "18041:5005"   # JDWP for TaskManager JVM (where job operators actually run)
+    environment:
+      <<: *flink-env
+      JOB_MANAGER_RPC_ADDRESS: jobmanager
+      FLINK_ENV_JAVA_OPTS_TM: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=${FLINK_DEBUG_SUSPEND:-n},address=*:5005"
+    command: taskmanager
+
+networks:
+  lakehouse-network:
+    external: true
+    name: spark_minio_trino_lakehouse-network
