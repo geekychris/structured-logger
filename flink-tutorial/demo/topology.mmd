@@ -1,0 +1,14 @@
+flowchart LR
+    ide["Your IDE<br/>(IntelliJ / VSCode)"]
+    jar[("uber-jar")]
+    ide -->|"mvn package"| jar
+    jar -->|"flink run"| jm
+    subgraph cluster["Flink session cluster"]
+        jm["JobManager<br/>UI :8081 · JDWP :5005"]
+        tm["TaskManager<br/>operators · JDWP :5005"]
+        jm <-->|RPC| tm
+    end
+    ui["Web UI :18030"]
+    jm <-->|HTTP| ui
+    ide <-->|"JDWP :18040"| jm
+    ide <-->|"JDWP :18041"| tm

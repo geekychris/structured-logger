@@ -2,6 +2,8 @@ con# Flink Table API tutorial
 
 Develop, run, and **debug** Flink Table API jobs against a session cluster — Docker Compose **or** Kubernetes — with the Web UI accessible from your browser and a JVM debugger attachable from your IDE.
 
+> 🎬 **Walkthrough video:** [`demo/flink-tutorial-walkthrough.mp4`](demo/flink-tutorial-walkthrough.mp4) — narrated step-by-step tour of everything below (cluster bring-up, job submission, debugger attach, gotchas).
+
 ```mermaid
 flowchart LR
     ide["Your IDE<br/>(IntelliJ / VSCode)"]

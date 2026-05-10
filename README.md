@@ -11,6 +11,10 @@ A metadata-driven structured logging framework that generates type-safe loggers 
 - **Spark Processing**: Real-time stream processing with 10-second micro-batches
 - **Trino Queries**: SQL access to Iceberg tables for analytics and monitoring
 
+## Flink Table API tutorial
+
+A self-contained tutorial in [`flink-tutorial/`](flink-tutorial/) brings up an Apache Flink 1.18 session cluster (Docker Compose **or** Kubernetes), exposes the Web UI on coordinated ports, and ships JDWP on both the JobManager and TaskManager so you can attach IntelliJ or VSCode to step through live operator code. Includes two ready-to-submit Table API examples and a narrated walkthrough video. See **[flink-tutorial/README.md](flink-tutorial/README.md)** and **[flink-tutorial/demo/flink-tutorial-walkthrough.mp4](flink-tutorial/demo/flink-tutorial-walkthrough.mp4)**.
+
 ## Transport Benchmark
 
 A standalone harness in [`bench/`](bench/) compares five ways to deliver records into a warehouse-ready landing zone — Kafka+JSON, Kafka+Avro+Schema-Registry, sidecar→S3+Avro, sidecar→S3+Parquet+Zstd, and WarpStream — on latency, CPU, network, storage, and cost per million rows. Headline finding: Kafka delivers ~7 ms p50 for ~$0.11/M rows; sidecar→S3+Parquet is **15× cheaper** but ~12 s p50; WarpStream sits between at ~400 ms p50. Full report with Mermaid diagrams, per-column Parquet compression analysis, and reproducible commands: **[bench/REPORT.md](bench/REPORT.md)**.

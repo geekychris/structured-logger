@@ -1,0 +1,162 @@
+{
+  "title": "Flink Table API Tutorial",
+  "theme": "dark",
+  "default_duration": 6,
+  "narration": {
+    "voice": "Daniel",
+    "rate": 165,
+    "post_roll_s": 1.0,
+    "leading_silence_s": 0.4
+  },
+  "scenes": [
+    {
+      "kind": "title",
+      "title": "Flink Table API",
+      "subtitle": "build, run, and debug, in compose or kubernetes",
+      "narration": "Welcome. [[slnc 400]] In the next few minutes, you will see how to build, [[slnc 200]] run, [[slnc 200]] and [[emph +]]debug an Apache Flink job using the Table A P I. [[slnc 600]] We will cover both docker compose, [[slnc 200]] and kubernetes, [[slnc 200]] and we will attach a debugger to the running cluster from your I D E."
+    },
+    {
+      "kind": "content",
+      "duration": 8,
+      "title": "What you will learn",
+      "body": "1. Bring up a Flink session cluster in two ways\n2. Build an uber-jar with a Table API job\n3. Submit it from the command line and the Web UI\n4. Watch records flow through the operators\n5. Attach IntelliJ or VSCode to the live JVM\n6. Use suspend equals y to pause at startup",
+      "narration": "Here is the plan. [[slnc 400]] First, we bring up a small Flink session cluster, [[slnc 200]] either with docker compose, or with kubernetes. [[slnc 500]] Then we build an uber jar containing a Table A P I example. [[slnc 400]] We submit it, watch the records flow, [[slnc 300]] and finally we attach a remote debugger from our I D E, [[slnc 200]] and step through real operator code."
+    },
+    {
+      "kind": "content",
+      "duration": 7,
+      "title": "Prerequisites",
+      "body": "• Docker, or Rancher Desktop with kubernetes enabled\n• Java 11 and Maven, for building the example\n• An IDE that speaks JDWP\n   IntelliJ IDEA, or VSCode with the Java extension pack\n• Optional: the lakehouse stack from spark_minio_trino,\n   if you want to run the Kafka example",
+      "narration": "You will need docker, [[slnc 200]] or rancher desktop with kubernetes turned on. [[slnc 400]] Java eleven and maven, [[slnc 200]] to build the examples. [[slnc 400]] And an I D E that supports remote J V M debug. [[slnc 300]] If you want to try the kafka example, you will also need the lakehouse stack from the spark minio trino project."
+    },
+    {
+      "kind": "content",
+      "duration": 9,
+      "title": "Path 1 — docker compose, the fast path",
+      "body": "Three commands, one running cluster:",
+      "code": "cd flink-tutorial\n./scripts/build.sh        # mvn package, builds the uber-jar\n./scripts/up.sh           # JM + TM + JDWP + Web UI\n./scripts/submit.sh com.example.flink.HelloTableApi",
+      "code_lang": "bash",
+      "annotations": [
+        {"type": "highlight_lines", "lines": [3], "color": "#fbbf24"},
+        {"type": "callout", "xy": [60, 760], "text": "→ JDWP exposed on 18040 (JM) and 18041 (TM)", "color": "#4ade80"}
+      ],
+      "narration": "Let us start with docker compose, [[slnc 200]] the fastest path. [[slnc 400]] You change into the flink tutorial directory, [[slnc 300]] run build dot s h, [[slnc 200]] which packages an uber jar with maven, [[slnc 400]] then up dot s h, [[slnc 200]] which brings up a job manager, [[slnc 200]] a task manager, [[slnc 200]] and exposes the web U I. [[slnc 500]] Finally, submit dot s h sends a hello world Table A P I job to the cluster."
+    },
+    {
+      "kind": "image",
+      "duration": 7,
+      "title": "Cluster topology",
+      "image": "/Users/chris/code/warp_experiments/done/structured-logging/flink-tutorial/demo/topology.png",
+      "caption": "JM coordinates, TM runs the operators, your IDE attaches over JDWP",
+      "narration": "Here is the topology. [[slnc 400]] Your I D E builds an uber jar, [[slnc 300]] which gets submitted to the job manager. [[slnc 400]] The job manager plans the query, [[slnc 200]] then schedules operators onto one or more task managers. [[slnc 500]] The web U I lives on port one eight zero three zero, [[slnc 200]] and the J D W P debugger ports are open on both J V Ms."
+    },
+    {
+      "kind": "content",
+      "duration": 8,
+      "title": "Open the Web UI",
+      "body": "Browse to http://127.0.0.1:18030\n\n• Running Jobs shows the hello-world job\n• Click into it → Task Managers tab → Stdout\n• You will see the print connector dump windowed results\n\nThe UI also lets you submit jars by drag-and-drop\n(web.submit.enable is on by default for this tutorial)",
+      "narration": "Open your browser to one twenty seven dot zero dot zero dot one, port one eight zero three zero. [[slnc 500]] You will see the running jobs panel. [[slnc 400]] Click into the hello world job, [[slnc 200]] go to the task managers tab, [[slnc 200]] and click into the running task manager. [[slnc 400]] The standard out tab shows the print connector dumping each window's results, [[slnc 200]] one row every thirty seconds."
+    },
+    {
+      "kind": "content",
+      "duration": 8,
+      "title": "Path 2 — kubernetes",
+      "body": "Same uber-jar, different deployment surface.",
+      "code": "./scripts/build.sh         # same jar, k8s consumes it\n./scripts/k8s-up.sh        # apply manifests, wait for ready\n./scripts/k8s-submit.sh com.example.flink.HelloTableApi\n\n# Web UI:\n#   NodePort:  http://localhost:30030\n#   forward:   kubectl -n flink-tutorial port-forward svc/flink-jobmanager 18030:8081",
+      "code_lang": "bash",
+      "narration": "Path two, [[slnc 200]] kubernetes. [[slnc 400]] The exact same uber jar works here, [[slnc 200]] you do not have to rebuild. [[slnc 500]] Run k eight s up dot s h to apply the manifests, [[slnc 200]] then k eight s submit dot s h to send the job. [[slnc 500]] The web U I is reachable two ways. [[slnc 300]] As a node port, on localhost three zero zero three zero, [[slnc 300]] or via kubectl port forward, [[slnc 200]] which is what I usually do for ephemeral access."
+    },
+    {
+      "kind": "comparison",
+      "duration": 9,
+      "title": "JobManager versus TaskManager",
+      "left_title": "JobManager",
+      "left_body": "• Runs main() of your job\n• Plans the query\n• Builds the JobGraph\n• Coordinates checkpoints\n\nFor Table API:\nSQL planning + optimization\nlives here.",
+      "right_title": "TaskManager",
+      "right_body": "• Runs the operators\n• Per-record logic\n• Joins, windows, aggregations\n• Most state lives here\n\nFor Table API:\nGenerated runtime code\nruns here. ← debug here.",
+      "narration": "Before we attach the debugger, [[slnc 200]] one important distinction. [[slnc 500]] The job manager runs your job's main method only at submit time. [[slnc 400]] It plans the query, [[slnc 200]] builds the job graph, [[slnc 200]] then hands work to the task managers. [[slnc 500]] The task manager is where the [[emph +]]operators run. [[slnc 200]] Per record logic, [[slnc 200]] joins, [[slnc 200]] windows, [[slnc 200]] aggregations. [[slnc 400]] So when you want to know what your data is actually doing, [[slnc 300]] you attach to the [[emph +]]task manager."
+    },
+    {
+      "kind": "content",
+      "duration": 8,
+      "title": "JDWP — already on, ready to attach",
+      "body": "Both JVMs boot with:\n\n  -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005\n\nCompose maps the host ports for you:",
+      "code": "| JVM         | Host port      |\n|-------------|----------------|\n| JobManager  | localhost:18040 |\n| TaskManager | localhost:18041 |",
+      "code_lang": "text",
+      "narration": "Both J V Ms boot with the J D W P agent enabled. [[slnc 400]] Server equals yes, [[slnc 200]] suspend equals no, [[slnc 200]] which means the J V M starts normally and accepts a debugger whenever you connect. [[slnc 500]] In compose, [[slnc 200]] the host ports are already mapped for you. [[slnc 300]] One eight zero four zero for the job manager, [[slnc 300]] one eight zero four one for the task manager."
+    },
+    {
+      "kind": "content",
+      "duration": 8,
+      "title": "Attach via kubernetes — port-forward",
+      "code": "# JobManager\nkubectl -n flink-tutorial port-forward \\\n  svc/flink-jobmanager 18040:5005 &\n\n# TaskManager\nkubectl -n flink-tutorial port-forward \\\n  svc/flink-taskmanager 18041:5005 &",
+      "code_lang": "bash",
+      "annotations": [
+        {"type": "callout", "xy": [60, 770], "text": "if the TM pod restarts, restart the port-forward", "color": "#fbbf24"}
+      ],
+      "narration": "On kubernetes, [[slnc 200]] J D W P is on container port five thousand and five inside each pod. [[slnc 400]] You open a kubectl port forward in a terminal and leave it running. [[slnc 400]] One for the job manager, [[slnc 200]] one for the task manager. [[slnc 500]] Note, [[slnc 200]] if the task manager pod restarts, [[slnc 200]] you need to restart the port forward as well."
+    },
+    {
+      "kind": "content",
+      "duration": 9,
+      "title": "IntelliJ IDEA — Remote JVM Debug",
+      "body": "1. Run → Edit Configurations → + → Remote JVM Debug\n2. Debugger mode: Attach to remote JVM\n3. Host: localhost\n4. Port: 18041 (TaskManager) or 18040 (JobManager)\n5. Module classpath: flink-table-tutorial\n6. Save → Run → connects within a second\n\nSet a breakpoint in your Table API code,\nsubmit the job, watch records hit the breakpoint.",
+      "narration": "In IntelliJ, [[slnc 200]] go to run, [[slnc 200]] edit configurations, [[slnc 200]] add a remote J V M debug configuration. [[slnc 500]] Debugger mode is attach to remote J V M. [[slnc 300]] Host is localhost. [[slnc 300]] Port one eight zero four one for the task manager, [[slnc 200]] or one eight zero four zero for the job manager. [[slnc 400]] Pick the flink table tutorial module on the classpath. [[slnc 400]] Save, [[slnc 200]] run the configuration, [[slnc 200]] and IntelliJ connects in under a second. [[slnc 400]] Set a breakpoint in your Table A P I code, [[slnc 200]] submit the job, [[slnc 200]] and watch records hit your breakpoint as they flow through."
+    },
+    {
+      "kind": "content",
+      "duration": 8,
+      "title": "VSCode — launch.json",
+      "code": "{\n  \"version\": \"0.2.0\",\n  \"configurations\": [\n    {\n      \"type\": \"java\",\n      \"name\": \"Attach to Flink TaskManager\",\n      \"request\": \"attach\",\n      \"hostName\": \"localhost\",\n      \"port\": 18041\n    }\n  ]\n}",
+      "code_lang": "json",
+      "narration": "VS code is just as simple. [[slnc 300]] Add a configuration to dot vs code slash launch dot json. [[slnc 400]] Type java, [[slnc 200]] request attach, [[slnc 200]] hostname localhost, [[slnc 200]] port one eight zero four one. [[slnc 500]] Then run and debug, [[slnc 200]] attach to flink task manager."
+    },
+    {
+      "kind": "content",
+      "duration": 7,
+      "title": "Pause until the debugger attaches",
+      "body": "Need to step through main() or query plan generation?\nFlip suspend on, and the JVM blocks until you connect.",
+      "code": "# Compose: just set the env var\nFLINK_DEBUG_SUSPEND=y ./scripts/up.sh\n\n# Kubernetes: edit suspend=n → suspend=y in\n#   k8s/20-jobmanager.yaml or k8s/30-taskmanager.yaml\nkubectl apply -f k8s/",
+      "code_lang": "bash",
+      "annotations": [
+        {"type": "callout", "xy": [60, 800], "text": "do NOT use suspend=y on the TaskManager — it hangs job submission", "color": "#ef4444"}
+      ],
+      "narration": "Sometimes you want to step through main, [[slnc 200]] or watch the Table A P I plan being generated. [[slnc 400]] For that, you need the J V M to pause at startup, [[slnc 200]] until your debugger attaches. [[slnc 500]] In compose, [[slnc 200]] set flink debug suspend to y, [[slnc 200]] and run up dot s h. [[slnc 400]] In kubernetes, [[slnc 200]] edit the manifest, [[slnc 200]] flip suspend equals n to y, [[slnc 200]] and reapply. [[slnc 500]] One warning. [[slnc 300]] [[emph +]]Never set suspend equals y on the task manager, [[slnc 200]] or job submission will hang forever."
+    },
+    {
+      "kind": "table",
+      "duration": 7,
+      "title": "Port map — what is reachable where",
+      "headers": ["Purpose", "Compose", "K8s NodePort", "K8s in-cluster"],
+      "rows": [
+        ["Web UI / REST", "18030", "30030", "flink-jobmanager:8081"],
+        ["JM JDWP", "18040", "(port-forward)", "flink-jobmanager:5005"],
+        ["TM JDWP", "18041", "(port-forward)", "flink-taskmanager:5005"],
+        ["JM RPC", "—", "(port-forward)", "flink-jobmanager:6123"]
+      ],
+      "highlight_rows": [0],
+      "narration": "Here is the full port map. [[slnc 400]] All host ports live in the eighteen thousand range, [[slnc 200]] coordinated through devportal, [[slnc 200]] so nothing collides with the lakehouse stack on the same machine. [[slnc 500]] Web U I on one eight zero three zero. [[slnc 300]] J D W P on one eight zero four zero, [[slnc 200]] and one eight zero four one."
+    },
+    {
+      "kind": "content",
+      "duration": 9,
+      "title": "Common gotchas",
+      "body": "• Connectors are NOT on the cluster classpath\n   bundle flink-connector-kafka, flink-json, etc into your uber-jar\n   (the example pom does this with the shade plugin)\n\n• TaskManager only sees jars submitted with the job\n   dropping jars into JM /opt/flink/lib without TM = ClassNotFoundException\n\n• JDWP does not authenticate\n   fine on a dev laptop, never expose port 5005 elsewhere\n\n• web.submit.enable is on by default\n   anyone reachable can submit jars — keep this off the open internet",
+      "narration": "A few gotchas to watch for. [[slnc 500]] Flink's connectors are [[emph +]]not on the cluster classpath by default. [[slnc 300]] You need to bundle them into your uber jar, [[slnc 200]] which the example pom does for you with the shade plugin. [[slnc 500]] The task manager only sees jars submitted with the job. [[slnc 200]] Dropping a jar into the job manager's lib directory will give you class not found errors at run time. [[slnc 500]] J D W P does not authenticate, [[slnc 200]] so do not expose port five thousand and five outside your laptop. [[slnc 500]] And the web U I has submission enabled, [[slnc 200]] so do not put it on the open internet."
+    },
+    {
+      "kind": "content",
+      "duration": 7,
+      "title": "Tear down and you are done",
+      "code": "# Compose\n./scripts/down.sh\n\n# Kubernetes\n./scripts/k8s-down.sh\n\n# Both are idempotent — safe to run twice.",
+      "code_lang": "bash",
+      "narration": "When you are finished, [[slnc 200]] tear the cluster down with down dot s h, [[slnc 200]] or k eight s down dot s h. [[slnc 400]] Both are safe to run twice."
+    },
+    {
+      "kind": "title",
+      "title": "Happy debugging",
+      "subtitle": "flink-tutorial/README.md has the full reference",
+      "narration": "That is the whole tour. [[slnc 400]] You can now bring up a Flink session cluster, [[slnc 200]] submit a Table A P I job, [[slnc 200]] view it in the web U I, [[slnc 200]] and attach your I D E to step through the operators as data flows through them. [[slnc 600]] The full reference, [[slnc 200]] including the kafka example and the gotchas, [[slnc 200]] lives in flink tutorial slash README dot md. [[slnc 500]] Happy debugging."
+    }
+  ]
+}
