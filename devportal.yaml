@@ -1,0 +1,21 @@
+apiVersion: devportal.io/v1
+kind: Asset
+metadata:
+  id: structured-logger
+  name: Structured Logger
+  description: |
+    Multi-language structured logging toolkit. The Java reactor lives under
+    java-logger/ and publishes the com.logging:structured-logging-* artifacts
+    consumed by sibling assets. Python, Flink tutorials, demos and Spark
+    consumers live in their own sibling subdirs.
+  tags: [logging, java, python, kafka, flink]
+spec:
+  type: library
+  language: java
+  build:
+    tool: maven
+    commands:
+      install: cd java-logger && mvn -DskipTests install
+      build:   cd java-logger && mvn -DskipTests package
+      test:    cd java-logger && mvn test
+      clean:   cd java-logger && mvn clean
