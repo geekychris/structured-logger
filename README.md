@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="Structured Logger logo" width="180">
+</p>
+
 # Structured Logging System
 
 A metadata-driven structured logging framework that generates type-safe loggers for Java and Python, publishes to Kafka, and automatically ingests logs into **Apache Iceberg** data warehouse tables using Spark Streaming.
